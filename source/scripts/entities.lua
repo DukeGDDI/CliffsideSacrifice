@@ -1,5 +1,10 @@
 -- scripts/entities.lua
 
+-- Ensure Constants is loaded before we use it
+if not Constants then
+    import "scripts/constants"
+end
+
 -- Global entities table (never local, never returned)
 Entities = Entities or {}
 
@@ -67,9 +72,9 @@ function Entities.updatePendulum(pumpDir)
         return
     end
 
-    ----------------------------------------------------------------
+    ------------------------------------------------------------
     -- 1. Integrate motion for all non-pivot points (Verlet)
-    ----------------------------------------------------------------
+    ------------------------------------------------------------
     for i = 2, count + 1 do
         local pt = points[i]
 
@@ -80,9 +85,31 @@ function Entities.updatePendulum(pumpDir)
         -- Apply gravity
         vy = vy + gravity
 
-        -- Apply pumping as a horizontal impulse at the bob (last point)
+        --------------------------------------------------------
+        -- Pumping: horizontal impulse at the bob (last point),
+        -- strongest near the bottom of the swing.
+        --------------------------------------------------------
         if pumpDir ~= 0 and i == count + 1 then
-            vx = vx + pumpDir * Constants.PENDULUM_PUMP_STRENGTH
+            -- Vector from pivot to bob
+            local dxp = pt.x - p.pivotX
+            local dyp = pt.y - p.pivotY
+
+            -- Angle from "straight down":
+            -- 0   = hanging straight down
+            -- ±pi = straight up above the pivot
+            -- Lua's atan(y, x): atan(dxp, dyp) gives angle from +Y axis.
+            local angleFromDown = math.atan(dxp, dyp)
+
+            -- Only pump effectively within a window around the bottom,
+            -- e.g. ±80° from vertical.
+            local pumpWindow = math.rad(80)
+            local absAngle   = math.abs(angleFromDown)
+
+            if absAngle < pumpWindow then
+                -- Linearly scale pump strength from 1 at bottom to 0 at window edge
+                local factor = (pumpWindow - absAngle) / pumpWindow
+                vx = vx + pumpDir * Constants.PENDULUM_PUMP_STRENGTH * factor
+            end
         end
 
         pt.prevX = pt.x
@@ -91,22 +118,27 @@ function Entities.updatePendulum(pumpDir)
         pt.y = pt.y + vy
     end
 
-    ----------------------------------------------------------------
-    -- 2. Re-anchor the pivot point
-    ----------------------------------------------------------------
+    ------------------------------------------------------------
+    -- 2. Re-anchor the pivot point (fixed)
+    ------------------------------------------------------------
     local pivot = points[1]
     pivot.x     = p.pivotX
     pivot.y     = p.pivotY
     pivot.prevX = p.pivotX
     pivot.prevY = p.pivotY
 
-    ----------------------------------------------------------------
+    ------------------------------------------------------------
     -- 3. Satisfy distance constraints between segments
-    ----------------------------------------------------------------
-    local segLen = p.segmentLength
+    --    + limit bend angle at each joint.
+    ------------------------------------------------------------
+    local segLen     = p.segmentLength
+    local iterations = 5   -- stiffer rope
+    local maxBend    = Constants.SEGMENT_MAX_BEND_RAD
 
-    -- A few iterations gives a reasonably stiff rope
-    for _ = 1, 5 do
+    for _ = 1, iterations do
+        --------------------------------------------------------
+        -- Length constraints
+        --------------------------------------------------------
         for i = 1, count do
             local a = points[i]
             local b = points[i + 1]
@@ -118,7 +150,7 @@ function Entities.updatePendulum(pumpDir)
             if dist > 0 then
                 local diff = (dist - segLen) / dist
 
-                -- If a is the pivot, only move b
+                -- If a is the pivot, only move b (pivot is fixed)
                 if i == 1 then
                     b.x = b.x - dx * diff
                     b.y = b.y - dy * diff
@@ -131,20 +163,80 @@ function Entities.updatePendulum(pumpDir)
                 end
             end
         end
+
+        --------------------------------------------------------
+        -- Angle constraints: limit bend at each internal joint
+        --------------------------------------------------------
+        for j = 2, count do
+            local A = points[j - 1]  -- previous point
+            local B = points[j]      -- joint
+            local C = points[j + 1]  -- next point
+
+            local abx = B.x - A.x
+            local aby = B.y - A.y
+            local bcx = C.x - B.x
+            local bcy = C.y - B.y
+
+            local abLen = math.sqrt(abx * abx + aby * aby)
+            local bcLen = math.sqrt(bcx * bcx + bcy * bcy)
+
+            if abLen > 0 and bcLen > 0 then
+                -- Angle between AB and BC
+                local dot   = abx * bcx + aby * bcy
+                local denom = abLen * bcLen
+                local cosT  = dot / denom
+
+                if cosT < -1 then cosT = -1 end
+                if cosT >  1 then cosT =  1 end
+
+                local theta = math.acos(cosT)
+
+                if theta > maxBend then
+                    -- We want to rotate BC around B so angle(AB, BC) == maxBend,
+                    -- preserving the side (clockwise vs counter-clockwise).
+                    local cross = abx * bcy - aby * bcx
+                    local sign  = 1
+                    if cross < 0 then
+                        sign = -1
+                    end
+
+                    local targetAngle = maxBend * sign
+
+                    -- Unit vector along AB
+                    local abUx = abx / abLen
+                    local abUy = aby / abLen
+
+                    -- Rotate AB unit vector by targetAngle to get desired BC direction
+                    local ca = math.cos(targetAngle)
+                    local sa = math.sin(targetAngle)
+
+                    local bcUx = abUx * ca - abUy * sa
+                    local bcUy = abUx * sa + abUy * ca
+
+                    -- New C position: rotate around B, preserve |BC|
+                    C.x = B.x + bcUx * bcLen
+                    C.y = B.y + bcUy * bcLen
+                end
+            end
+        end
     end
 
-    ----------------------------------------------------------------
+    ------------------------------------------------------------
     -- 4. Update bob position convenience fields
-    ----------------------------------------------------------------
+    ------------------------------------------------------------
     local last = points[count + 1]
     p.bobX = last.x
     p.bobY = last.y
 
-    ----------------------------------------------------------------
+    ------------------------------------------------------------
     -- 5. Update any loose (cut) segments
-    ----------------------------------------------------------------
+    ------------------------------------------------------------
     Entities.updateLooseSegments()
 end
+
+
+
+
 
 -- Update physics for segments that have been cut loose
 function Entities.updateLooseSegments()

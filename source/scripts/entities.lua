@@ -11,6 +11,7 @@ Entities = Entities or {}
 -- Table for rope fragments that have been cut loose
 -- Each entry: { x, y, prevX, prevY }
 Entities.looseSegments = Entities.looseSegments or {}
+Entities.pegGrabCooldownFrames = Entities.pegGrabCooldownFrames or 0
 
 -- Pegs: configured via level, owned at runtime by Entities
 -- Each peg: { x, y, radius, type = "standard" }
@@ -65,20 +66,18 @@ function Entities.initPendulum()
     local cfg = (Level and Level.getCurrent) and Level.getCurrent() or nil
     local levelPegs = (cfg and cfg.pegs) or Entities.pegs
 
-    -- Fallback in case no pegs exist
     if not levelPegs or #levelPegs == 0 then
         levelPegs = {
             {
                 x = Constants.PIVOT_X,
                 y = Constants.PIVOT_Y,
                 radius = Constants.PEG_DEFAULT_RADIUS,
-                type = "start"
+                type = "start",
             }
         }
         Entities.pegs = levelPegs
     end
 
-    -- STARTING PIVOT = FIRST PEG
     local startPeg = levelPegs[1]
     local pivotX   = startPeg.x
     local pivotY   = startPeg.y
@@ -93,21 +92,21 @@ function Entities.initPendulum()
     p.points        = {}
     p.attached      = true
 
-    -- Loose segments cleared on reset
-    Entities.looseSegments = {}
+    Entities.looseSegments          = {}
+    Entities.pegGrabCooldownFrames  = 0  -- 🔹 reset cooldown here
 
-    -- Create pivot point
+    -- Point 1: pivot
     p.points[1] = {
         x = pivotX, y = pivotY,
-        prevX = pivotX, prevY = pivotY
+        prevX = pivotX, prevY = pivotY,
     }
 
-    -- Hang rope vertically from pivot
+    -- Hang rope
     for i = 2, p.segmentCount + 1 do
         local y = pivotY + p.segmentLength * (i - 1)
         p.points[i] = {
             x = pivotX, y = y,
-            prevX = pivotX, prevY = y
+            prevX = pivotX, prevY = y,
         }
     end
 
@@ -115,6 +114,7 @@ function Entities.initPendulum()
     p.tailX = tail.x
     p.tailY = tail.y
 end
+
 
 
 ----------------------------------------------------------------
@@ -126,11 +126,12 @@ end
 -- are all consistent. Otherwise, just re-init the pendulum.
 function Entities.resetLevel()
     if Level and Level.apply then
-        Level.apply()  -- resets pivot to peg #1
+        Level.apply()
     else
         Entities.initPendulum()
     end
 end
+
 
 
 ----------------------------------------------------------------
@@ -140,6 +141,11 @@ end
 -- Check if the tail collides with any peg; if so, grab the closest.
 -- This is active in BOTH attached and released modes.
 function Entities.checkPegGrab()
+    -- 🔹 If we're still in cooldown, skip peg checks
+    if Entities.pegGrabCooldownFrames and Entities.pegGrabCooldownFrames > 0 then
+        return
+    end
+
     local p      = Entities.pendulum
     local points = p.points
     local count  = p.segmentCount
@@ -232,6 +238,9 @@ function Entities.grabPeg(pegIndex)
     local tail = newPoints[count + 1]
     p.tailX = tail.x
     p.tailY = tail.y
+
+    -- 🔹 Start cooldown so we don't immediately grab another peg
+    Entities.pegGrabCooldownFrames = Constants.PEG_GRAB_COOLDOWN_FRAMES
 
     -- Next updatePendulum call will naturally settle the rope.
 end
@@ -425,7 +434,7 @@ function Entities.updatePendulum(pumpDir)
         end
     end
 
-    ------------------------------------------------------------
+        ------------------------------------------------------------
     -- 4. Update tail position convenience fields
     ------------------------------------------------------------
     local tail = points[count + 1]
@@ -433,9 +442,15 @@ function Entities.updatePendulum(pumpDir)
     p.tailY = tail.y
 
     ------------------------------------------------------------
-    -- 5. Check for peg grabs (may change pivot & rope layout)
-    --    Active in BOTH attached and released modes.
+    -- 5. Decrement peg grab cooldown (if any), then check grabs
     ------------------------------------------------------------
+    if Entities.pegGrabCooldownFrames and Entities.pegGrabCooldownFrames > 0 then
+        Entities.pegGrabCooldownFrames = Entities.pegGrabCooldownFrames - 1
+        if Entities.pegGrabCooldownFrames < 0 then
+            Entities.pegGrabCooldownFrames = 0
+        end
+    end
+
     Entities.checkPegGrab()
 
     ------------------------------------------------------------
@@ -460,6 +475,7 @@ function Entities.updatePendulum(pumpDir)
     -- 7. Update any loose (cut) segments
     ------------------------------------------------------------
     Entities.updateLooseSegments()
+
 end
 
 ----------------------------------------------------------------

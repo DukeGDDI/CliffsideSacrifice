@@ -30,3 +30,7 @@ Constants.PIVOT_RADIUS         = 2   -- pivot circle radius
 
 -- Peg defaults
 Constants.PEG_DEFAULT_RADIUS = 10    -- default peg grab/draw radius
+
+-- How many frames after a peg grab before we allow another grab
+-- at 30 FPS, 10 frames = ~0.33 seconds
+Constants.PEG_GRAB_COOLDOWN_FRAMES = 10

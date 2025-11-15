@@ -28,7 +28,7 @@ Level.current = {
         },
 
         { x = 280, y = 80,  radius = Constants.PEG_DEFAULT_RADIUS, type = "standard" },
-        { x = 120, y = 130, radius = Constants.PEG_DEFAULT_RADIUS, type = "standard" },
+        { x = 270, y = 150, radius = Constants.PEG_DEFAULT_RADIUS, type = "standard" },
     },
 }
 

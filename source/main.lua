@@ -6,52 +6,38 @@ import "CoreLibs/timer"
 
 local gfx = playdate.graphics
 
-------------------------------------------------------------
--- Import script modules (define global tables)
--- IMPORTANT: constants must load before entities
-------------------------------------------------------------
 import "scripts/constants"
 import "scripts/entities"
+import "scripts/level"
 import "scripts/draw"
 
-------------------------------------------------------------
--- Initialization
-------------------------------------------------------------
 gfx.setBackgroundColor(gfx.kColorWhite)
 gfx.setColor(gfx.kColorBlack)
 
-Entities.initPendulum()
+-- NEW: Level handles starting pivot and pegs
+Level.apply()
 
 playdate.display.setRefreshRate(30)
 
-------------------------------------------------------------
--- Per-frame update
-------------------------------------------------------------
 function playdate.update()
     gfx.clear()
 
-    --------------------------------------------------------
-    -- Handle pumping input (continuous while held)
-    --------------------------------------------------------
-    local pumpDir = 0
-    if playdate.buttonIsPressed(playdate.kButtonLeft) then
-        pumpDir = -1
-    elseif playdate.buttonIsPressed(playdate.kButtonRight) then
-        pumpDir = 1
-    end
+    Draw.drawPegs(Entities.pegs)
 
-    --------------------------------------------------------
-    -- Physics update + drawing
-    --------------------------------------------------------
+    local pumpDir = 0
+    if playdate.buttonIsPressed(playdate.kButtonLeft) then pumpDir = -1 end
+    if playdate.buttonIsPressed(playdate.kButtonRight) then pumpDir = 1 end
+
     Entities.updatePendulum(pumpDir)
     Draw.drawPendulum(Entities.pendulum)
 
     playdate.timer.updateTimers()
 end
 
-------------------------------------------------------------
--- Button callbacks (one-shot actions)
-------------------------------------------------------------
 function playdate.BButtonDown()
     Entities.cutSegment()
+end
+
+function playdate.AButtonDown()
+    Entities.releasePivot()
 end

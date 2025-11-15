@@ -11,6 +11,11 @@ Entities = Entities or {}
 -- Table for rope fragments that have been cut loose
 -- Each entry: { x, y, prevX, prevY }
 Entities.looseSegments = Entities.looseSegments or {}
+Entities.pegGrabCooldownFrames = Entities.pegGrabCooldownFrames or 0
+
+-- Pegs: configured via level, owned at runtime by Entities
+-- Each peg: { x, y, radius, type = "standard" }
+Entities.pegs = Entities.pegs or {}
 
 -- Pendulum / rope state
 Entities.pendulum = {
@@ -19,46 +24,243 @@ Entities.pendulum = {
     segmentLength = Constants.PENDULUM_LENGTH_DEFAULT / Constants.PENDULUM_SEGMENT_COUNT,
     segmentCount  = Constants.PENDULUM_SEGMENT_COUNT,
     points        = {},   -- array of { x, y, prevX, prevY }
-    bobX          = 0,
-    bobY          = 0,
+    tailX         = 0,    -- convenience: last segment position
+    tailY         = 0,
+    attached      = true, -- true = swinging around a pivot, false = free-flying rope
 }
 
--- Initialize rope as a vertical chain of points under the pivot
+----------------------------------------------------------------
+-- Peg API
+----------------------------------------------------------------
+
+-- Configure pegs for the current level.
+-- pegs: array of { x, y, radius?, type? }
+function Entities.setPegs(pegs)
+    Entities.pegs = {}
+
+    if not pegs then
+        return
+    end
+
+    for i = 1, #pegs do
+        local src = pegs[i]
+        Entities.pegs[i] = {
+            x      = src.x,
+            y      = src.y,
+            radius = src.radius or Constants.PEG_DEFAULT_RADIUS,
+            type   = src.type or "standard",
+        }
+    end
+end
+
+----------------------------------------------------------------
+-- Pendulum / rope setup
+----------------------------------------------------------------
+
+-- Initialize rope as a vertical chain of points under a pivot.
+-- Pivot and rope configuration are taken from Level.current if available,
+-- otherwise fall back to Constants defaults.
 function Entities.initPendulum()
     local p = Entities.pendulum
 
-    p.pivotX        = Constants.PIVOT_X
-    p.pivotY        = Constants.PIVOT_Y
-    p.segmentCount  = Constants.PENDULUM_SEGMENT_COUNT
-    p.segmentLength = Constants.PENDULUM_LENGTH_DEFAULT / p.segmentCount
+    local cfg = (Level and Level.getCurrent) and Level.getCurrent() or nil
+    local levelPegs = (cfg and cfg.pegs) or Entities.pegs
+
+    if not levelPegs or #levelPegs == 0 then
+        levelPegs = {
+            {
+                x = Constants.PIVOT_X,
+                y = Constants.PIVOT_Y,
+                radius = Constants.PEG_DEFAULT_RADIUS,
+                type = "start",
+            }
+        }
+        Entities.pegs = levelPegs
+    end
+
+    local startPeg = levelPegs[1]
+    local pivotX   = startPeg.x
+    local pivotY   = startPeg.y
+
+    local segmentCount = (cfg and cfg.segmentCount) or Constants.PENDULUM_SEGMENT_COUNT
+    local totalLength  = (cfg and cfg.pendulumLength) or Constants.PENDULUM_LENGTH_DEFAULT
+
+    p.pivotX        = pivotX
+    p.pivotY        = pivotY
+    p.segmentCount  = segmentCount
+    p.segmentLength = totalLength / segmentCount
     p.points        = {}
+    p.attached      = true
 
-    -- Clear any previously loose segments
-    Entities.looseSegments = {}
+    Entities.looseSegments          = {}
+    Entities.pegGrabCooldownFrames  = 0  -- 🔹 reset cooldown here
 
-    -- Point 1: fixed pivot
+    -- Point 1: pivot
     p.points[1] = {
-        x     = p.pivotX,
-        y     = p.pivotY,
-        prevX = p.pivotX,
-        prevY = p.pivotY,
+        x = pivotX, y = pivotY,
+        prevX = pivotX, prevY = pivotY,
     }
 
-    -- Remaining points: hang straight down
+    -- Hang rope
     for i = 2, p.segmentCount + 1 do
-        local y = p.pivotY + p.segmentLength * (i - 1)
+        local y = pivotY + p.segmentLength * (i - 1)
         p.points[i] = {
-            x     = p.pivotX,
-            y     = y,
-            prevX = p.pivotX,
-            prevY = y,
+            x = pivotX, y = y,
+            prevX = pivotX, prevY = y,
         }
     end
 
-    local last = p.points[#p.points]
-    p.bobX = last.x
-    p.bobY = last.y
+    local tail = p.points[#p.points]
+    p.tailX = tail.x
+    p.tailY = tail.y
 end
+
+
+
+----------------------------------------------------------------
+-- Level reset / fail handling
+----------------------------------------------------------------
+
+-- Reset the level state.
+-- If a Level module exists, go through Level.apply() so pivot, rope, and pegs
+-- are all consistent. Otherwise, just re-init the pendulum.
+function Entities.resetLevel()
+    if Level and Level.apply then
+        Level.apply()
+    else
+        Entities.initPendulum()
+    end
+end
+
+
+
+----------------------------------------------------------------
+-- Peg grabbing helpers
+----------------------------------------------------------------
+
+-- Check if the tail collides with any peg; if so, grab the closest.
+-- This is active in BOTH attached and released modes.
+function Entities.checkPegGrab()
+    -- 🔹 If we're still in cooldown, skip peg checks
+    if Entities.pegGrabCooldownFrames and Entities.pegGrabCooldownFrames > 0 then
+        return
+    end
+
+    local p      = Entities.pendulum
+    local points = p.points
+    local count  = p.segmentCount
+    local pegs   = Entities.pegs
+
+    if not pegs or #pegs == 0 or not points or #points == 0 then
+        return
+    end
+
+    local tail = points[count + 1]
+    local tx   = tail.x
+    local ty   = tail.y
+
+    local closestIndex = nil
+    local closestDist2 = nil
+
+    for i = 1, #pegs do
+        local peg    = pegs[i]
+        local radius = peg.radius or Constants.PEG_DEFAULT_RADIUS
+
+        local dx    = tx - peg.x
+        local dy    = ty - peg.y
+        local dist2 = dx * dx + dy * dy
+
+        if dist2 <= radius * radius then
+            if not closestDist2 or dist2 < closestDist2 then
+                closestDist2 = dist2
+                closestIndex = i
+            end
+        end
+    end
+
+    if closestIndex then
+        Entities.grabPeg(closestIndex)
+    end
+end
+
+-- Grab the peg at index pegIndex:
+--  - The rope's pivot jumps to the peg.
+--  - The rope is reindexed so the previous tail's chain trails behind.
+--  - Rope length and segment count are preserved.
+--  - The rope becomes attached again.
+function Entities.grabPeg(pegIndex)
+    local peg = Entities.pegs[pegIndex]
+    if not peg then
+        return
+    end
+
+    local p         = Entities.pendulum
+    local oldPoints = p.points
+    local count     = p.segmentCount
+
+    if not oldPoints or #oldPoints < 2 then
+        return
+    end
+
+    local newPoints = {}
+
+    -- New pivot at the peg position
+    newPoints[1] = {
+        x     = peg.x,
+        y     = peg.y,
+        prevX = peg.x,
+        prevY = peg.y,
+    }
+
+    -- Rebuild the rest of the rope as a reversed chain behind the new pivot.
+    -- We ignore oldPoints[count+1] (tail) and reverse 1..count behind the new pivot.
+    --
+    -- newPoints[2]      corresponds to oldPoints[count]
+    -- newPoints[count+1] corresponds to oldPoints[1]
+    for k = 1, count do
+        local srcIndex = count + 1 - k
+        local src      = oldPoints[srcIndex]
+
+        newPoints[k + 1] = {
+            x     = src.x,
+            y     = src.y,
+            prevX = src.x,
+            prevY = src.y,
+        }
+    end
+
+    p.points   = newPoints
+    p.pivotX   = peg.x
+    p.pivotY   = peg.y
+    p.attached = true
+
+    -- Update tail convenience fields
+    local tail = newPoints[count + 1]
+    p.tailX = tail.x
+    p.tailY = tail.y
+
+    -- 🔹 Start cooldown so we don't immediately grab another peg
+    Entities.pegGrabCooldownFrames = Constants.PEG_GRAB_COOLDOWN_FRAMES
+
+    -- Next updatePendulum call will naturally settle the rope.
+end
+
+----------------------------------------------------------------
+-- Release / attach API
+----------------------------------------------------------------
+
+-- Release the rope from its current pivot so it flies freely.
+function Entities.releasePivot()
+    local p = Entities.pendulum
+    if not p.attached then
+        return
+    end
+    p.attached = false
+end
+
+----------------------------------------------------------------
+-- Pendulum / rope update
+----------------------------------------------------------------
 
 -- Update rope physics; pumpDir = -1, 0, or 1 (left, none, right)
 function Entities.updatePendulum(pumpDir)
@@ -73,9 +275,16 @@ function Entities.updatePendulum(pumpDir)
     end
 
     ------------------------------------------------------------
-    -- 1. Integrate motion for all non-pivot points (Verlet)
+    -- 1. Integrate motion for all points except the pivot when attached
+    --    (When released, ALL points are integrated freely.)
     ------------------------------------------------------------
-    for i = 2, count + 1 do
+    local startIndex = 2
+    if not p.attached then
+        -- When released, point 1 is no longer anchored; integrate it too.
+        startIndex = 1
+    end
+
+    for i = startIndex, count + 1 do
         local pt = points[i]
 
         -- Current velocity from last frame (Verlet)
@@ -86,11 +295,12 @@ function Entities.updatePendulum(pumpDir)
         vy = vy + gravity
 
         --------------------------------------------------------
-        -- Pumping: horizontal impulse at the bob (last point),
+        -- Pumping: horizontal impulse at the tail (last point),
         -- strongest near the bottom of the swing.
+        -- Only meaningful when attached to a pivot.
         --------------------------------------------------------
-        if pumpDir ~= 0 and i == count + 1 then
-            -- Vector from pivot to bob
+        if p.attached and pumpDir ~= 0 and i == count + 1 then
+            -- Vector from pivot to tail
             local dxp = pt.x - p.pivotX
             local dyp = pt.y - p.pivotY
 
@@ -119,13 +329,15 @@ function Entities.updatePendulum(pumpDir)
     end
 
     ------------------------------------------------------------
-    -- 2. Re-anchor the pivot point (fixed)
+    -- 2. Re-anchor the pivot point (fixed) when attached
     ------------------------------------------------------------
-    local pivot = points[1]
-    pivot.x     = p.pivotX
-    pivot.y     = p.pivotY
-    pivot.prevX = p.pivotX
-    pivot.prevY = p.pivotY
+    if p.attached then
+        local pivot = points[1]
+        pivot.x     = p.pivotX
+        pivot.y     = p.pivotY
+        pivot.prevX = p.pivotX
+        pivot.prevY = p.pivotY
+    end
 
     ------------------------------------------------------------
     -- 3. Satisfy distance constraints between segments
@@ -150,11 +362,12 @@ function Entities.updatePendulum(pumpDir)
             if dist > 0 then
                 local diff = (dist - segLen) / dist
 
-                -- If a is the pivot, only move b (pivot is fixed)
-                if i == 1 then
+                if p.attached and i == 1 then
+                    -- Attached: pivot is fixed; only move the second point.
                     b.x = b.x - dx * diff
                     b.y = b.y - dy * diff
                 else
+                    -- Released or internal segment: move both ends.
                     local half = 0.5
                     a.x = a.x + dx * diff * half
                     a.y = a.y + dy * diff * half
@@ -221,24 +434,53 @@ function Entities.updatePendulum(pumpDir)
         end
     end
 
+        ------------------------------------------------------------
+    -- 4. Update tail position convenience fields
     ------------------------------------------------------------
-    -- 4. Update bob position convenience fields
-    ------------------------------------------------------------
-    local last = points[count + 1]
-    p.bobX = last.x
-    p.bobY = last.y
+    local tail = points[count + 1]
+    p.tailX = tail.x
+    p.tailY = tail.y
 
     ------------------------------------------------------------
-    -- 5. Update any loose (cut) segments
+    -- 5. Decrement peg grab cooldown (if any), then check grabs
+    ------------------------------------------------------------
+    if Entities.pegGrabCooldownFrames and Entities.pegGrabCooldownFrames > 0 then
+        Entities.pegGrabCooldownFrames = Entities.pegGrabCooldownFrames - 1
+        if Entities.pegGrabCooldownFrames < 0 then
+            Entities.pegGrabCooldownFrames = 0
+        end
+    end
+
+    Entities.checkPegGrab()
+
+    ------------------------------------------------------------
+    -- 6. Fail condition: if released and tail falls off-screen,
+    --    reset the level.
+    ------------------------------------------------------------
+    if not p.attached then
+        local tx, ty   = p.tailX, p.tailY
+        local margin   = 40
+        local w, h     = Constants.SCREEN_WIDTH, Constants.SCREEN_HEIGHT
+
+        if ty > h + margin
+           or ty < -margin
+           or tx < -margin
+           or tx > w + margin then
+            Entities.resetLevel()
+            return
+        end
+    end
+
+    ------------------------------------------------------------
+    -- 7. Update any loose (cut) segments
     ------------------------------------------------------------
     Entities.updateLooseSegments()
+
 end
 
-
-
-
-
+----------------------------------------------------------------
 -- Update physics for segments that have been cut loose
+----------------------------------------------------------------
 function Entities.updateLooseSegments()
     local segments = Entities.looseSegments
     if not segments or #segments == 0 then
@@ -274,9 +516,11 @@ function Entities.updateLooseSegments()
     end
 end
 
+----------------------------------------------------------------
 -- Cut loose the last segment, shortening the rope.
 -- The cut point becomes a free-falling segment with its current velocity.
 -- Continues cutting until there is only one segment left.
+----------------------------------------------------------------
 function Entities.cutSegment()
     local p      = Entities.pendulum
     local points = p.points
@@ -292,7 +536,7 @@ function Entities.cutSegment()
 
     -- Last point in the rope (the one we are cutting loose)
     local lastIndex = #points
-    local last = points[lastIndex]
+    local last      = points[lastIndex]
 
     -- Compute its current velocity from Verlet state
     local vx = last.x - last.prevX
@@ -313,8 +557,8 @@ function Entities.cutSegment()
     -- Decrease the segment count
     p.segmentCount = p.segmentCount - 1
 
-    -- Update bob to the new last point
+    -- Update tail to the new last point
     local newLast = points[#points]
-    p.bobX = newLast.x
-    p.bobY = newLast.y
+    p.tailX = newLast.x
+    p.tailY = newLast.y
 end

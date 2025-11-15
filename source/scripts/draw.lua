@@ -2,9 +2,38 @@
 
 local gfx = playdate.graphics
 
+-- Ensure globals exist if this file is loaded directly
+if not Constants then
+    import "scripts/constants"
+end
+if not Entities then
+    import "scripts/entities"
+end
+
 -- Global Draw table (never local, never returned)
 Draw = Draw or {}
 
+----------------------------------------------------------------
+-- Draw all pegs
+----------------------------------------------------------------
+function Draw.drawPegs(pegs)
+    pegs = pegs or Entities.pegs
+    if not pegs or #pegs == 0 then
+        return
+    end
+
+    for i = 1, #pegs do
+        local peg    = pegs[i]
+        local radius = peg.radius or Constants.PEG_DEFAULT_RADIUS
+
+        -- Simple hollow circle for a peg
+        gfx.drawCircleAtPoint(peg.x, peg.y, radius)
+    end
+end
+
+----------------------------------------------------------------
+-- Draw the pendulum rope + pivot + tail + loose segments
+----------------------------------------------------------------
 function Draw.drawPendulum(pendulum)
     local points = pendulum.points
     if not points or #points == 0 then
@@ -21,7 +50,7 @@ function Draw.drawPendulum(pendulum)
     end
 
     ----------------------------------------------------------------
-    -- Small circles at EVERY rope point (pivot through bob)
+    -- Small circles at EVERY rope point (pivot through tail)
     ----------------------------------------------------------------
     for i = 1, pendulum.segmentCount + 1 do
         local pt = points[i]
@@ -39,13 +68,13 @@ function Draw.drawPendulum(pendulum)
     )
 
     ----------------------------------------------------------------
-    -- Bob / climber (largest)
+    -- Tail / climber (largest) - last point
     ----------------------------------------------------------------
     local last = points[pendulum.segmentCount + 1]
     gfx.fillCircleAtPoint(
         last.x,
         last.y,
-        Constants.PENDULUM_BOB_RADIUS
+        Constants.PENDULUM_TAIL_RADIUS
     )
 
     ----------------------------------------------------------------

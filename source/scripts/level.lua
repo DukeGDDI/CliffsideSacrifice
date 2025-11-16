@@ -35,7 +35,7 @@ Level.levels = Level.levels or {}
 -- Example baseline level (index 0)
 Level.levels[0] = {
     levelWidth    = 400,
-    levelHeight   = 240,
+    levelHeight   = 600,
     segmentLength = 20,
     segmentCount  = 4,
 
@@ -43,7 +43,7 @@ Level.levels[0] = {
     pegs = {
         -- Start peg: absolute position, near the top center
         {
-            id   = "start",
+            id   = "001",
             x    = 0,
             y    = 40,
             type = "start",
@@ -51,30 +51,91 @@ Level.levels[0] = {
 
         -- A standard peg a couple of segment lengths down and to the right
         {
-            id       = "mid_01",
-            refId    = "start",
+            id       = "002",
+            refId    = "001",
             segDist  = 3,
-            degOffset = 25,
-            xOffset  = 0,
-            yOffset  = 10,
+            degOffset = 45,
             type     = "standard",
         },
 
         -- Another standard peg down and to the left of the start peg
         {
-            id       = "mid_02",
-            refId    = "start",
-            segDist  = 5,
+            id       = "003",
+            refId    = "001",
+            segDist  = 4,
+            degOffset = -45,
+            type     = "standard",
+        },
+
+        {
+            id       = "004",
+            refId    = "002",
+            segDist  = 3,
+            degOffset = 30,
+            type     = "standard",
+        },
+
+        {
+            id       = "005",
+            refId    = "004",
+            segDist  = 3,
             degOffset = -30,
+            yOffset = 10,
+            type     = "standard",
+        },
+
+        {
+            id       = "006",
+            refId    = "005",
+            segDist  = 2,
+            degOffset = -30,
+            yOffset = 30,
+            type     = "standard",
+        },
+
+        {
+            id       = "007",
+            refId    = "003",
+            segDist  = 4,
+            degOffset = -15,
+            yOffset = 30,
+            type     = "standard",
+        },
+
+        {
+            id       = "008",
+            refId    = "007",
+            segDist  = 4,
+            degOffset = 45,
+            yOffset = 30,
+            type     = "standard",
+        },
+
+        {
+            id       = "009",
+            refId    = "008",
+            segDist  = 3,
+            degOffset = 45,
+            yOffset = 30,
+            type     = "standard",
+        },
+
+        {
+            id       = "010",
+            refId    = "009",
+            segDist  = 3,
+            degOffset = 45,
+            -- yOffset = 30,
             type     = "standard",
         },
 
         -- End peg further down from mid_01
         {
-            id       = "end",
-            refId    = "mid_01",
+            id       = "011",
+            refId    = "009",
             segDist  = 4,
-            degOffset = 5,
+            degOffset = -30,
+            yOffset  = 30,
             type     = "end",
         },
     },

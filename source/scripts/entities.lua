@@ -517,22 +517,65 @@ end
 ----------------------------------------------------------------
 function Entities._checkPendulumFailCondition(p)
     ------------------------------------------------------------
-    -- Fail condition: if released and tail leaves the level bounds
-    -- (with some margin), reset the level.
+    -- Fail condition:
+    --   When the rope is RELEASED and the tail leaves the
+    --   CAMERA'S VIEWPORT (with some margin), reset the level.
+    --
+    -- If no Camera is available, fall back to a simple
+    -- level-bounds check in level space.
     ------------------------------------------------------------
     if not p.attached then
         local tx, ty = p.tailX, p.tailY
         local margin = 40
 
-        -- 🔹 Use level bounds instead of fixed screen size
-        local w = Entities.levelWidth  or Constants.SCREEN_WIDTH
-        local h = Entities.levelHeight or Constants.SCREEN_HEIGHT
+        local outOfView = false
 
-        -- Origin is top-left (0,0). Level spans [0,w] x [0,h].
-        if ty > h + margin
-           or ty < -margin
-           or tx < -margin
-           or tx > w + margin then
+        -- Prefer camera-based viewport check
+        if Camera and Camera.x and Camera.y then
+            -- Camera.x, Camera.y = TOP-CENTER of viewport in LEVEL SPACE
+            -- Viewport in level space:
+            --   left   = Camera.x - SCREEN_WIDTH/2
+            --   right  = Camera.x + SCREEN_WIDTH/2
+            --   top    = Camera.y
+            --   bottom = Camera.y + SCREEN_HEIGHT
+            local halfW = Constants.SCREEN_WIDTH / 2
+
+            local viewLeft   = Camera.x - halfW
+            local viewRight  = Camera.x + halfW
+            local viewTop    = Camera.y
+            local viewBottom = Camera.y + Constants.SCREEN_HEIGHT
+
+            if ty > viewBottom + margin
+               or ty < viewTop    - margin
+               or tx < viewLeft   - margin
+               or tx > viewRight  + margin then
+                outOfView = true
+            end
+        else
+            ----------------------------------------------------
+            -- Fallback: use level bounds in LEVEL SPACE.
+            -- Here we assume:
+            --   X ∈ [-w/2, +w/2]
+            --   Y ∈ [0, h]
+            ----------------------------------------------------
+            local w = Entities.levelWidth  or Constants.SCREEN_WIDTH
+            local h = Entities.levelHeight or Constants.SCREEN_HEIGHT
+            local halfW = w / 2
+
+            local levelLeft   = -halfW
+            local levelRight  =  halfW
+            local levelTop    = 0
+            local levelBottom = h
+
+            if ty > levelBottom + margin
+               or ty < levelTop    - margin
+               or tx < levelLeft   - margin
+               or tx > levelRight  + margin then
+                outOfView = true
+            end
+        end
+
+        if outOfView then
             Entities.resetLevel()
             return true
         end
@@ -540,6 +583,7 @@ function Entities._checkPendulumFailCondition(p)
 
     return false
 end
+
 
 
 

@@ -21,7 +21,7 @@ Constants.SEGMENT_MAX_BEND_DEG = 5
 Constants.SEGMENT_MAX_BEND_RAD = math.rad(Constants.SEGMENT_MAX_BEND_DEG)
 
 -- Initial pivot position (roughly top-center)
-Constants.PIVOT_X = Constants.SCREEN_WIDTH / 2
+Constants.PIVOT_X = 0
 Constants.PIVOT_Y = 50
 
 -- Visuals

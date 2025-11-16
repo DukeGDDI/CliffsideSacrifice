@@ -7,38 +7,37 @@ end
 Level = Level or {}
 
 ----------------------------------------------------------------
--- LEVEL DEFINITIONS
+-- LEVEL DEFINITIONS (zero-indexed)
 --
--- For now we only have level 1. Later you can add more entries
--- into Level.levels[2], [3], etc.
+-- LEVEL SPACE:
+--   (0,0) = center top of the level
+--   X ∈ [-levelWidth/2, +levelWidth/2]
+--   Y ∈ [0, levelHeight]
 ----------------------------------------------------------------
 
-Level.levels = {
+Level.levels = Level.levels or {}
 
-    [1] = {
-        -- Level dimensions in world space (top-left origin for now).
-        levelWidth  = Constants.SCREEN_WIDTH,  -- 400
-        levelHeight = 800,                     -- example: taller than screen
+Level.levels[0] = {
+    -- Level dimensions in level space
+    levelWidth  = Constants.SCREEN_WIDTH,  -- e.g. 400 → X ∈ [-200, +200]
+    levelHeight = 800,                     -- taller than the screen
 
-        -- Pendulum configuration for this level
-        pendulumLength = Constants.PENDULUM_LENGTH_DEFAULT,
-        segmentCount   = Constants.PENDULUM_SEGMENT_COUNT,
+    -- Pendulum configuration for this level
+    pendulumLength = Constants.PENDULUM_LENGTH_DEFAULT,
+    segmentCount   = Constants.PENDULUM_SEGMENT_COUNT,
 
-        -- Peg list (first entry = starting pivot)
-        pegs = {
-            {
-                x = Constants.SCREEN_WIDTH / 2,
-                y = 50,
-                radius = Constants.PEG_DEFAULT_RADIUS,
-                type = "start",
-            },
-
-            { x = 280, y = 80,  radius = Constants.PEG_DEFAULT_RADIUS, type = "standard" },
-            { x = 270, y = 150, radius = Constants.PEG_DEFAULT_RADIUS, type = "standard" },
+    -- Peg list (first entry = starting pivot), in LEVEL SPACE
+    pegs = {
+        {
+            x = 0,
+            y = 50,
+            radius = Constants.PEG_DEFAULT_RADIUS,
+            type   = "start",
         },
-    },
 
-    -- [2] = { ... another level ... },
+        { x = 80, y =  80, radius = Constants.PEG_DEFAULT_RADIUS, type = "standard" },
+        { x = 70, y = 150, radius = Constants.PEG_DEFAULT_RADIUS, type = "standard" },
+    },
 }
 
 ----------------------------------------------------------------
@@ -46,23 +45,6 @@ Level.levels = {
 ----------------------------------------------------------------
 
 -- Return the config table for level n (or nil if not defined)
-function Level.getLevel(n)
-    return Level.levels[n]
-end
-
--- Apply a specific level index:
---  - stores current index
---  - configures Entities from that level
-function Level.apply(index)
-    local cfg = Level.getLevel(index)
-    if not cfg then
-        -- If index is invalid, do nothing for now
-        return
-    end
-
-    Level.currentIndex = index
-    Level.current      = cfg
-
-    Entities.setPegs(cfg.pegs)
-    Entities.initPendulum()
+function Level.getLevel(index)
+    return Level.levels[index]
 end

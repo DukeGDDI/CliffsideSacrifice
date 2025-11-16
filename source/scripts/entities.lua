@@ -64,24 +64,24 @@ end
 -- Initialize rope as a vertical chain of points under a pivot.
 -- Pivot and rope configuration are taken from Level.current if available,
 -- otherwise fall back to Constants defaults.
-function Entities.initPendulum()
+function Entities.initPendulum(cfg)
     local p = Entities.pendulum
 
-    local cfg = (Level and Level.getLevel(0)) and Level.getLevel(0) or nil
-    local levelPegs = (cfg and cfg.pegs) or Entities.pegs
+    cfg = cfg or {}
 
-    -- Capture level bounds from config if available
-    Entities.levelWidth  = (cfg and cfg.levelWidth)  or Constants.SCREEN_WIDTH
-    Entities.levelHeight = (cfg and cfg.levelHeight) or Constants.SCREEN_HEIGHT
+    -- Level bounds from config (fallback to screen size)
+    Entities.levelWidth  = cfg.levelWidth  or Constants.SCREEN_WIDTH
+    Entities.levelHeight = cfg.levelHeight or Constants.SCREEN_HEIGHT
 
+    local levelPegs = cfg.pegs or Entities.pegs
 
     if not levelPegs or #levelPegs == 0 then
         levelPegs = {
             {
-                x = Constants.PIVOT_X,
-                y = Constants.PIVOT_Y,
+                x      = Constants.PIVOT_X,
+                y      = Constants.PIVOT_Y,
                 radius = Constants.PEG_DEFAULT_RADIUS,
-                type = "start",
+                type   = "start",
             }
         }
         Entities.pegs = levelPegs
@@ -91,8 +91,8 @@ function Entities.initPendulum()
     local pivotX   = startPeg.x
     local pivotY   = startPeg.y
 
-    local segmentCount = (cfg and cfg.segmentCount) or Constants.PENDULUM_SEGMENT_COUNT
-    local totalLength  = (cfg and cfg.pendulumLength) or Constants.PENDULUM_LENGTH_DEFAULT
+    local segmentCount = cfg.segmentCount   or Constants.PENDULUM_SEGMENT_COUNT
+    local totalLength  = cfg.pendulumLength or Constants.PENDULUM_LENGTH_DEFAULT
 
     p.pivotX        = pivotX
     p.pivotY        = pivotY
@@ -101,21 +101,26 @@ function Entities.initPendulum()
     p.points        = {}
     p.attached      = true
 
-    Entities.looseSegments          = {}
-    Entities.pegGrabCooldownFrames  = 0  -- 🔹 reset cooldown here
+    -- Reset helper state
+    Entities.looseSegments         = {}
+    Entities.pegGrabCooldownFrames = 0
 
     -- Point 1: pivot
     p.points[1] = {
-        x = pivotX, y = pivotY,
-        prevX = pivotX, prevY = pivotY,
+        x     = pivotX,
+        y     = pivotY,
+        prevX = pivotX,
+        prevY = pivotY,
     }
 
-    -- Hang rope
+    -- Hang rope vertically from the pivot
     for i = 2, p.segmentCount + 1 do
         local y = pivotY + p.segmentLength * (i - 1)
         p.points[i] = {
-            x = pivotX, y = y,
-            prevX = pivotX, prevY = y,
+            x     = pivotX,
+            y     = y,
+            prevX = pivotX,
+            prevY = y,
         }
     end
 
@@ -123,6 +128,7 @@ function Entities.initPendulum()
     p.tailX = tail.x
     p.tailY = tail.y
 end
+
 
 
 
@@ -137,12 +143,6 @@ function Entities.resetLevel()
     -- Prefer going through Game if it exists (future-proof for multi-level support)
     if Game and Game.reloadLevel then
         Game.reloadLevel()
-        return
-    end
-
-    -- Fallback: use Level.apply() if available (single-level flow)
-    if Level and Level.apply then
-        Level.apply()
         return
     end
 

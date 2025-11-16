@@ -1,15 +1,18 @@
 -- scripts/camera.lua
 --
--- Camera is a global singleton.
--- Coordinates are in WORLD space (same as Entities / Level).
+-- Coordinate system:
+--   LEVEL SPACE: (0, 0) = CENTER TOP of the level
+--   X increases to the right, decreases to the left
+--   Y increases downward
 --
--- For now we keep the existing top-left origin convention:
---   (0,0) = top-left of the level
+-- Camera.x, Camera.y represent the TOP-CENTER of the viewport in level space.
 --
--- Camera.x, Camera.y represent the TOP-LEFT of the viewport in world coords.
--- Playdate screen is 400x240, so:
---   visible X range = [Camera.x, Camera.x + 400]
---   visible Y range = [Camera.y, Camera.y + 240]
+-- Screen mapping (Playdate 400x240):
+--   sx = SCREEN_WIDTH / 2 + (wx - Camera.x)
+--   sy = wy - Camera.y
+--
+-- So if Camera.x = 0, Camera.y = 0, then:
+--   world (0, 0) → screen (200, 0)
 
 if not Constants then
     import "scripts/constants"
@@ -17,19 +20,27 @@ end
 
 Camera = Camera or {}
 
--- Initialize or reset the camera for a given level.
--- levelWidth / levelHeight: world dimensions of the level.
--- startPivotX / startPivotY: initial pivot position in world coordinates.
+----------------------------------------------------------------
+-- Initialize camera for a level
+----------------------------------------------------------------
+-- levelWidth, levelHeight: dimensions of the level in LEVEL SPACE
+--   X range: [-levelWidth/2, +levelWidth/2]
+--   Y range: [0, levelHeight]
+--
+-- startPivotX, startPivotY: pivot position in LEVEL SPACE
+--   We try to place the pivot at screenX=center, screenY=20.
+----------------------------------------------------------------
 function Camera.init(levelWidth, levelHeight, startPivotX, startPivotY)
     Camera.viewportWidth  = Constants.SCREEN_WIDTH
     Camera.viewportHeight = Constants.SCREEN_HEIGHT
 
-    Camera.levelWidth  = levelWidth or Camera.viewportWidth
+    Camera.levelWidth  = levelWidth  or Camera.viewportWidth
     Camera.levelHeight = levelHeight or Camera.viewportHeight
 
-    Camera.lerpSpeed = 8.0  -- how quickly we follow the target
+    -- Lerp rate toward target
+    Camera.lerpSpeed = 8.0
 
-    -- Top-left of viewport in world space
+    -- Top-center of viewport in level space
     Camera.x = 0
     Camera.y = 0
 
@@ -37,13 +48,18 @@ function Camera.init(levelWidth, levelHeight, startPivotX, startPivotY)
     Camera.targetY = 0
 
     if startPivotX and startPivotY then
-        -- We want pivot at (screenX=200, screenY=20)
-        -- With top-left camera, that means:
-        --   Camera.x = pivotX - 200
+        -- We want pivot at (screen center, 20px down from top).
+        -- Given world→screen:
+        --   sx = 200 + (wx - Camera.x)
+        --   sy = wy - Camera.y
+        -- To put (wx, wy) = pivot at (200, 20):
+        --   Camera.x = pivotX
         --   Camera.y = pivotY - 20
-        local tx = startPivotX - (Camera.viewportWidth / 2)
+        local tx = startPivotX
         local ty = startPivotY - 20
+
         tx, ty = Camera.clampToBounds(tx, ty)
+
         Camera.x       = tx
         Camera.y       = ty
         Camera.targetX = tx
@@ -51,28 +67,46 @@ function Camera.init(levelWidth, levelHeight, startPivotX, startPivotY)
     end
 end
 
--- Clamp the camera so that the viewport stays within the level bounds.
--- Level is assumed to span horizontally from 0 to levelWidth,
--- and vertically from 0 to levelHeight.
+----------------------------------------------------------------
+-- Clamp camera so viewport stays within level bounds
+----------------------------------------------------------------
 function Camera.clampToBounds(x, y)
     local vw = Camera.viewportWidth
     local vh = Camera.viewportHeight
 
-    local lw = Camera.levelWidth  or vw
-    local lh = Camera.levelHeight or vh
+    local lw = Camera.levelWidth
+    local lh = Camera.levelHeight
 
-    -- If the level is narrower than the view, lock x = 0
+    if not lw or not lh then
+        return x, y
+    end
+
+    -- Horizontal:
+    -- Camera.x is top-center. Viewport covers:
+    --   left  = Camera.x - vw/2
+    --   right = Camera.x + vw/2
+    --
+    -- Level covers:
+    --   left  = -lw/2
+    --   right = +lw/2
+    local halfViewW  = vw / 2
+    local halfLevelW = lw / 2
+
     if lw <= vw then
+        -- Level narrower than screen: just stay centered on 0
         x = 0
     else
-        local minX = 0
-        local maxX = lw - vw
+        local minX = -halfLevelW + halfViewW
+        local maxX =  halfLevelW - halfViewW
         if x < minX then x = minX end
         if x > maxX then x = maxX end
     end
 
-    -- If the level is shorter than the view, lock y = 0
+    -- Vertical:
+    -- Camera.y is top. Viewport covers [Camera.y, Camera.y + vh].
+    -- Level covers [0, lh].
     if lh <= vh then
+        -- Level shorter than screen: lock to top
         y = 0
     else
         local minY = 0
@@ -84,19 +118,15 @@ function Camera.clampToBounds(x, y)
     return x, y
 end
 
--- Set the camera's target based on the pivot position in world space.
--- Desired on-screen pivot position:
---   screenX = 200 (center)
---   screenY = 20 (slightly down from top)
+----------------------------------------------------------------
+-- Update target from pivot position
+----------------------------------------------------------------
 function Camera.setTargetFromPivot(pivotX, pivotY)
     if not pivotX or not pivotY then
         return
     end
 
-    local vw = Camera.viewportWidth or 400
-
-    -- To put pivot at screenX=vw/2, screenY=20:
-    local tx = pivotX - (vw / 2)
+    local tx = pivotX
     local ty = pivotY - 20
 
     tx, ty = Camera.clampToBounds(tx, ty)
@@ -105,10 +135,13 @@ function Camera.setTargetFromPivot(pivotX, pivotY)
     Camera.targetY = ty
 end
 
--- dt is the frame delta in seconds (e.g., 1/30).
--- pivotX, pivotY are the current pivot coordinates in world space.
+----------------------------------------------------------------
+-- Per-frame update
+----------------------------------------------------------------
+-- dt: delta time in seconds (e.g., 1/30)
+-- pivotX, pivotY: current pivot position in LEVEL SPACE
+----------------------------------------------------------------
 function Camera.update(dt, pivotX, pivotY)
-    -- Always update target from pivot
     Camera.setTargetFromPivot(pivotX, pivotY)
 
     local t = (Camera.lerpSpeed or 8.0) * dt
@@ -117,23 +150,23 @@ function Camera.update(dt, pivotX, pivotY)
     Camera.x = Camera.x + (Camera.targetX - Camera.x) * t
     Camera.y = Camera.y + (Camera.targetY - Camera.y) * t
 
-    -- Just in case numerical drift pushes us out of bounds
     Camera.x, Camera.y = Camera.clampToBounds(Camera.x, Camera.y)
 end
 
--- Convert world coordinates (wx, wy) to screen coordinates (sx, sy).
--- With a top-left camera:
---   sx = wx - Camera.x
---   sy = wy - Camera.y
+----------------------------------------------------------------
+-- Coordinate transforms
+----------------------------------------------------------------
+-- world/level (wx, wy) → screen (sx, sy)
+----------------------------------------------------------------
 function Camera.worldToScreen(wx, wy)
-    local sx = wx - Camera.x
+    local sx = (Constants.SCREEN_WIDTH / 2) + (wx - Camera.x)
     local sy = wy - Camera.y
     return sx, sy
 end
 
--- Optional helper: convert screen→world if needed.
+-- Optional: screen → world
 function Camera.screenToWorld(sx, sy)
-    local wx = Camera.x + sx
+    local wx = Camera.x + (sx - Constants.SCREEN_WIDTH / 2)
     local wy = Camera.y + sy
     return wx, wy
 end

@@ -2,7 +2,6 @@
 
 local gfx = playdate.graphics
 
--- Ensure globals exist if this file is loaded directly
 if not Constants then
     import "scripts/constants"
 end
@@ -13,11 +12,10 @@ if not Camera then
     import "scripts/camera"
 end
 
--- Global Draw table (never local, never returned)
 Draw = Draw or {}
 
 ----------------------------------------------------------------
--- Helper: world → screen with camera
+-- Helper: level/world → screen using Camera
 ----------------------------------------------------------------
 local function toScreen(x, y)
     if Camera and Camera.worldToScreen then
@@ -71,35 +69,26 @@ function Draw.drawPendulum(pendulum)
     -- Small circles at EVERY rope point (pivot through tail)
     ----------------------------------------------------------------
     for i = 1, p.segmentCount + 1 do
-        local pt      = points[i]
-        local sx, sy  = toScreen(pt.x, pt.y)
+        local pt = points[i]
+        local sx, sy = toScreen(pt.x, pt.y)
         gfx.fillCircleAtPoint(sx, sy, 2)
     end
 
     ----------------------------------------------------------------
     -- Pivot (larger)
     ----------------------------------------------------------------
-    local pivot      = points[1]
-    local pivotX, pivotY = toScreen(pivot.x, pivot.y)
-    gfx.fillCircleAtPoint(
-        pivotX,
-        pivotY,
-        Constants.PIVOT_RADIUS
-    )
+    local pivotX, pivotY = toScreen(points[1].x, points[1].y)
+    gfx.fillCircleAtPoint(pivotX, pivotY, Constants.PIVOT_RADIUS)
 
     ----------------------------------------------------------------
     -- Tail / climber (largest) - last point
     ----------------------------------------------------------------
-    local last       = points[p.segmentCount + 1]
+    local last = points[p.segmentCount + 1]
     local tailX, tailY = toScreen(last.x, last.y)
-    gfx.fillCircleAtPoint(
-        tailX,
-        tailY,
-        Constants.PENDULUM_TAIL_RADIUS
-    )
+    gfx.fillCircleAtPoint(tailX, tailY, Constants.PENDULUM_TAIL_RADIUS)
 
     ----------------------------------------------------------------
-    -- Draw loose (cut) segments as small falling dots
+    -- Loose (cut) segments
     ----------------------------------------------------------------
     local segments = Entities.looseSegments
     if segments and #segments > 0 then

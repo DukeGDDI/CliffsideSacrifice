@@ -1,5 +1,8 @@
 -- scripts/game.lua
 
+if not Constants then
+    import "scripts/constants"
+end
 if not Level then
     import "scripts/level"
 end
@@ -19,8 +22,8 @@ Game = Game or {}
 -- GAME STATE
 ----------------------------------------------------------------
 
--- Which level index we are currently on (1-based)
-Game.currentLevelIndex = Game.currentLevelIndex or 1
+-- Zero-based level index
+Game.currentLevelIndex = Game.currentLevelIndex or 0
 
 ----------------------------------------------------------------
 -- INITIALIZATION
@@ -29,14 +32,12 @@ Game.currentLevelIndex = Game.currentLevelIndex or 1
 function Game.init()
     local gfx = playdate.graphics
 
-    -- Visual setup
     gfx.setBackgroundColor(gfx.kColorWhite)
     gfx.setColor(gfx.kColorBlack)
 
-    -- Frame rate
     playdate.display.setRefreshRate(30)
 
-    -- Load the starting level
+    -- For now: single level in Level.current / Level.levels[0]
     Game.loadLevel(Game.currentLevelIndex)
 end
 
@@ -44,31 +45,32 @@ end
 -- LEVEL MANAGEMENT
 ----------------------------------------------------------------
 
--- Load a specific level index.
--- This calls into Level.apply(index), which configures Entities.
--- We also initialize the camera based on level bounds + start peg.
 function Game.loadLevel(index)
-    if not index then
-        index = Game.currentLevelIndex or 1
+    -- Default to current index if not provided
+    if index == nil then
+        index = Game.currentLevelIndex or 0
     end
 
     local cfg = Level.getLevel(index)
     if not cfg then
-        -- Invalid index; do nothing for now
         return
     end
 
     Game.currentLevelIndex = index
 
-    -- Configure Entities (pegs + pendulum)
-    Level.apply(index)
+    -- Configure entities from this level
+    Entities.setPegs(cfg.pegs)
+    Entities.initPendulum(cfg)
 
-    -- Initialize camera from this level and its starting peg
+    -- Initialize camera using this level config + starting peg
     local startPeg = cfg.pegs and cfg.pegs[1] or nil
-    if Camera and startPeg then
+    if startPeg then
+        local levelWidth  = cfg.levelWidth  or Constants.SCREEN_WIDTH
+        local levelHeight = cfg.levelHeight or Constants.SCREEN_HEIGHT
+
         Camera.init(
-            cfg.levelWidth  or Constants.SCREEN_WIDTH,
-            cfg.levelHeight or Constants.SCREEN_HEIGHT,
+            levelWidth,
+            levelHeight,
             startPeg.x,
             startPeg.y
         )
@@ -79,15 +81,6 @@ function Game.reloadLevel()
     Game.loadLevel(Game.currentLevelIndex)
 end
 
-function Game.nextLevel()
-    local nextIndex = (Game.currentLevelIndex or 1) + 1
-    if Level.getLevel(nextIndex) then
-        Game.loadLevel(nextIndex)
-    else
-        -- No next level defined yet; just reload current
-        Game.reloadLevel()
-    end
-end
 
 ----------------------------------------------------------------
 -- MAIN UPDATE LOOP (called from main.lua)
@@ -108,18 +101,15 @@ function Game.update()
     -- Update rope / pendulum / entities
     Entities.updatePendulum(pumpDir)
 
-    -- Update camera to follow current pivot (if available)
+    -- Update camera to follow current pivot
     local p = Entities.pendulum
-    if Camera and p then
-        -- Fixed timestep to match display rate
-        local dt = 1 / 30
+    if p then
+        local dt = 1 / 30 -- matches refresh rate
         Camera.update(dt, p.pivotX, p.pivotY)
     end
 
-    -- Draw the pegs
+    -- Draw world
     Draw.drawPegs(Entities.pegs)
-
-    -- Draw world (rope, tail, loose segments)
     Draw.drawPendulum(Entities.pendulum)
 
     -- Timers
@@ -131,11 +121,9 @@ end
 ----------------------------------------------------------------
 
 function Game.onAButtonDown()
-    -- For now: release from pivot
     Entities.releasePivot()
 end
 
 function Game.onBButtonDown()
-    -- For now: cut the last rope segment
     Entities.cutSegment()
 end

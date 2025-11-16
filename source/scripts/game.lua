@@ -16,103 +16,136 @@ if not Camera then
     import "scripts/camera"
 end
 
+local gfx = playdate.graphics
+
+-- Global Game table (never local, never returned)
 Game = Game or {}
 
-----------------------------------------------------------------
--- GAME STATE
-----------------------------------------------------------------
-
--- Zero-based level index
-Game.currentLevelIndex = Game.currentLevelIndex or 0
+-- Zero-indexed current level
+Game.currentLevelIndex  = Game.currentLevelIndex or 0
+Game.currentLevelConfig = Game.currentLevelConfig or nil
 
 ----------------------------------------------------------------
--- INITIALIZATION
+-- INIT
 ----------------------------------------------------------------
-
 function Game.init()
-    local gfx = playdate.graphics
-
+    -- Basic graphics setup
     gfx.setBackgroundColor(gfx.kColorWhite)
     gfx.setColor(gfx.kColorBlack)
-
     playdate.display.setRefreshRate(30)
 
-    -- For now: single level in Level.current / Level.levels[0]
+    -- Load the initial level
     Game.loadLevel(Game.currentLevelIndex)
 end
 
 ----------------------------------------------------------------
--- LEVEL MANAGEMENT
+-- LEVEL LOADING
 ----------------------------------------------------------------
 
-function Game.loadLevel(index)
-    -- Default to current index if not provided
-    if index == nil then
-        index = Game.currentLevelIndex or 0
-    end
-
-    local cfg = Level.getLevel(index)
-    if not cfg then
-        return
-    end
-
-    Game.currentLevelIndex = index
-
-    -- Configure entities from this level
-    Entities.setPegs(cfg.pegs)
-    Entities.initPendulum(cfg)
-
-    -- Initialize camera using this level config + starting peg
-    local startPeg = cfg.pegs and cfg.pegs[1] or nil
-    if startPeg then
-        local levelWidth  = cfg.levelWidth  or Constants.SCREEN_WIDTH
-        local levelHeight = cfg.levelHeight or Constants.SCREEN_HEIGHT
-
-        Camera.init(
-            levelWidth,
-            levelHeight,
-            startPeg.x,
-            startPeg.y
-        )
-    end
-end
-
+-- Reload the current level
 function Game.reloadLevel()
     Game.loadLevel(Game.currentLevelIndex)
 end
 
+-- Load a level by index (zero-based)
+function Game.loadLevel(index)
+    local cfg = Level.getLevel(index)
+    if not cfg then
+        print(string.format("[Game] No level config for index %s", tostring(index)))
+        return
+    end
+
+    Game.currentLevelIndex  = index
+    Game.currentLevelConfig = cfg
+
+    ----------------------------------------------------------------
+    -- Configure pegs
+    ----------------------------------------------------------------
+    if cfg.pegs then
+        Entities.setPegs(cfg.pegs)
+    else
+        Entities.setPegs(nil)
+    end
+
+    ----------------------------------------------------------------
+    -- Choose the start peg
+    --
+    -- Rule:
+    --   * Prefer the first peg whose type == "start"
+    --   * Fallback to the first peg in the list if none are marked
+    ----------------------------------------------------------------
+    local startPeg = nil
+    local pegs     = cfg.pegs
+
+    if pegs and #pegs > 0 then
+        for i = 1, #pegs do
+            local peg = pegs[i]
+            if peg.type == "start" then
+                startPeg = peg
+                break
+            end
+        end
+
+        if not startPeg then
+            startPeg = pegs[1]
+        end
+    end
+
+    ----------------------------------------------------------------
+    -- Initialize pendulum and camera
+    ----------------------------------------------------------------
+    -- Pendulum initialization uses Level.getLevel + Game.currentLevelIndex
+    Entities.initPendulum()
+
+    local startX = Constants.PIVOT_X
+    local startY = Constants.PIVOT_Y
+
+    if startPeg then
+        startX = startPeg.x
+        startY = startPeg.y
+    end
+
+    Camera.init(
+        cfg.levelWidth  or (Constants.SCREEN_WIDTH * 2),
+        cfg.levelHeight or (Constants.SCREEN_HEIGHT * 2),
+        startX,
+        startY
+    )
+end
 
 ----------------------------------------------------------------
--- MAIN UPDATE LOOP (called from main.lua)
+-- UPDATE
 ----------------------------------------------------------------
-
 function Game.update()
-    local gfx = playdate.graphics
     gfx.clear()
 
-    -- Input → pumpDir (-1 = left, +1 = right, 0 = none)
+    -- Input: left/right → pump direction
+    local leftPressed  = playdate.buttonIsPressed(playdate.kButtonLeft)
+    local rightPressed = playdate.buttonIsPressed(playdate.kButtonRight)
+
     local pumpDir = 0
-    if playdate.buttonIsPressed(playdate.kButtonLeft) then
+    if leftPressed and not rightPressed then
         pumpDir = -1
-    elseif playdate.buttonIsPressed(playdate.kButtonRight) then
+    elseif rightPressed and not leftPressed then
         pumpDir = 1
     end
 
-    -- Update rope / pendulum / entities
+    -- Update rope / pendulum physics
     Entities.updatePendulum(pumpDir)
 
-    -- Update camera to follow current pivot
+    -- Camera follows the current pivot of the pendulum
     local p = Entities.pendulum
     if p then
-        local dt = 1 / 30 -- matches refresh rate
-        Camera.update(dt, p.pivotX, p.pivotY)
+        Camera.update(1 / 30, p.pivotX, p.pivotY)
+    else
+        Camera.update(1 / 30)
     end
 
-    -- Draw world
+    -- Draw pegs + rope
     Draw.drawPegs(Entities.pegs)
     Draw.drawPendulum(Entities.pendulum)
 
-    -- Timers
+    -- Update timers (for future use)
     playdate.timer.updateTimers()
 end
 

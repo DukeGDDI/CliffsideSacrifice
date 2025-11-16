@@ -156,3 +156,25 @@ function Draw.drawCliffBase()
     img:draw(screenX, screenY)
 end
 
+----------------------------------------------------------
+-- Draw "YOU WON!" centered on screen in bold white text
+----------------------------------------------------------
+function Draw.drawYouWon()
+    local gfx = playdate.graphics
+
+    -- Make text WHITE regardless of background
+    gfx.setImageDrawMode(gfx.kDrawModeFillWhite)
+
+    -- Bold white font
+    gfx.setColor(gfx.kColorWhite)
+    gfx.setFont(gfx.getSystemFont(gfx.font.kVariantBold))
+
+    -- Centered text
+    gfx.drawTextAligned(
+        "YOU WON!",
+        Constants.SCREEN_WIDTH / 2,
+        Constants.SCREEN_HEIGHT / 2,
+        kTextAlignment.center
+    )
+end
+

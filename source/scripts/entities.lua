@@ -134,12 +134,22 @@ end
 -- If a Level module exists, go through Level.apply() so pivot, rope, and pegs
 -- are all consistent. Otherwise, just re-init the pendulum.
 function Entities.resetLevel()
+    -- Prefer going through Game if it exists (future-proof for multi-level support)
+    if Game and Game.reloadLevel then
+        Game.reloadLevel()
+        return
+    end
+
+    -- Fallback: use Level.apply() if available (single-level flow)
     if Level and Level.apply then
         Level.apply()
-    else
-        Entities.initPendulum()
+        return
     end
+
+    -- Last resort: just rebuild the pendulum with whatever config exists
+    Entities.initPendulum()
 end
+
 
 
 

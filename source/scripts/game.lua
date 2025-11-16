@@ -9,6 +9,9 @@ end
 if not Draw then
     import "scripts/draw"
 end
+if not Camera then
+    import "scripts/camera"
+end
 
 Game = Game or {}
 
@@ -43,6 +46,7 @@ end
 
 -- Load a specific level index.
 -- This calls into Level.apply(index), which configures Entities.
+-- We also initialize the camera based on level bounds + start peg.
 function Game.loadLevel(index)
     if not index then
         index = Game.currentLevelIndex or 1
@@ -55,7 +59,20 @@ function Game.loadLevel(index)
     end
 
     Game.currentLevelIndex = index
+
+    -- Configure Entities (pegs + pendulum)
     Level.apply(index)
+
+    -- Initialize camera from this level and its starting peg
+    local startPeg = cfg.pegs and cfg.pegs[1] or nil
+    if Camera and startPeg then
+        Camera.init(
+            cfg.levelWidth  or Constants.SCREEN_WIDTH,
+            cfg.levelHeight or Constants.SCREEN_HEIGHT,
+            startPeg.x,
+            startPeg.y
+        )
+    end
 end
 
 function Game.reloadLevel()
@@ -91,10 +108,18 @@ function Game.update()
     -- Update rope / pendulum / entities
     Entities.updatePendulum(pumpDir)
 
+    -- Update camera to follow current pivot (if available)
+    local p = Entities.pendulum
+    if Camera and p then
+        -- Fixed timestep to match display rate
+        local dt = 1 / 30
+        Camera.update(dt, p.pivotX, p.pivotY)
+    end
+
     -- Draw the pegs
     Draw.drawPegs(Entities.pegs)
 
-    -- Draw world
+    -- Draw world (rope, tail, loose segments)
     Draw.drawPendulum(Entities.pendulum)
 
     -- Timers

@@ -20,19 +20,27 @@ Level.levels = Level.levels or {}
 Level.levels[0] = {
     -- Level dimensions in level space
     levelWidth  = 600,  -- e.g. 400 → X ∈ [-200, +200]
-    levelHeight = 800,  -- taller than the screen
+    levelHeight = 800,  -- taller than the screena
 
     -- Pendulum configuration for this level
-    pendulumLength = Constants.PENDULUM_LENGTH_DEFAULT,
-    segmentCount   = Constants.PENDULUM_SEGMENT_COUNT,
+    segmentLength = 50,
+    segmentCount = 4,
 
     -- Peg list (first entry = starting pivot), in LEVEL SPACE
     pegs = {
-        { x = 0, y = 50, radius = Constants.PEG_DEFAULT_RADIUS, type   = "start" },
-        { x = 80, y =  80, radius = Constants.PEG_DEFAULT_RADIUS, type = "standard" },
-        { x = 70, y = 150, radius = Constants.PEG_DEFAULT_RADIUS, type = "standard" },
-        { x = 150, y = 150, radius = Constants.PEG_DEFAULT_RADIUS, type = "standard" },
-        { x = 200, y = 150, radius = Constants.PEG_DEFAULT_RADIUS, type = "standard" },
+        { x = 0, y =  50, type = "start" },
+        { x = 80, y =  80, type = "standard" },
+        { x = 70, y = 150, type = "standard" },
+        { x = 150, y = 150, type = "standard" },
+        { x = -80, y = 150, type = "standard" },
+        { x = 0, y = 200, type = "standard" },
+        { x = 150, y = 250, type = "standard" },
+        { x = 100, y = 250, type = "standard" },
+        { x = 0, y = 280, type = "standard" },
+        { x = -50, y = 300, type = "standard" },
+        { x = -100, y = 350, type = "standard" },
+        { x = -150, y = 400, type = "standard" },
+        { x = -200, y = 420, type = "standard" },
     },
 }
 

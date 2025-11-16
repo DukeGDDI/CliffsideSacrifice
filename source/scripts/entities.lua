@@ -25,7 +25,7 @@ Entities.levelHeight = Entities.levelHeight or Constants.SCREEN_HEIGHT
 Entities.pendulum = {
     pivotX        = Constants.PIVOT_X,
     pivotY        = Constants.PIVOT_Y,
-    segmentLength = Constants.PENDULUM_LENGTH_DEFAULT / Constants.PENDULUM_SEGMENT_COUNT,
+    segmentLength = Constants.PENDULUM_SEGMENT_LENGTH,
     segmentCount  = Constants.PENDULUM_SEGMENT_COUNT,
     points        = {},   -- array of { x, y, prevX, prevY }
     tailX         = 0,    -- convenience: last segment position
@@ -64,17 +64,14 @@ end
 -- Initialize rope as a vertical chain of points under a pivot.
 -- Pivot and rope configuration are taken from Level.current if available,
 -- otherwise fall back to Constants defaults.
-function Entities.initPendulum(cfg)
+function Entities.initPendulum()
     local p = Entities.pendulum
 
-    cfg = cfg or {}
+    -- Level config (if any)
+    local cfg = Level.getLevel(Game.currentLevelIndex) or nil
+    local levelPegs = (cfg and cfg.pegs) or Entities.pegs
 
-    -- Level bounds from config (fallback to screen size)
-    Entities.levelWidth  = cfg.levelWidth  or Constants.SCREEN_WIDTH
-    Entities.levelHeight = cfg.levelHeight or Constants.SCREEN_HEIGHT
-
-    local levelPegs = cfg.pegs or Entities.pegs
-
+    -- If no pegs defined, create a simple default start peg
     if not levelPegs or #levelPegs == 0 then
         levelPegs = {
             {
@@ -82,7 +79,7 @@ function Entities.initPendulum(cfg)
                 y      = Constants.PIVOT_Y,
                 radius = Constants.PEG_DEFAULT_RADIUS,
                 type   = "start",
-            }
+            },
         }
         Entities.pegs = levelPegs
     end
@@ -91,13 +88,18 @@ function Entities.initPendulum(cfg)
     local pivotX   = startPeg.x
     local pivotY   = startPeg.y
 
-    local segmentCount = cfg.segmentCount   or Constants.PENDULUM_SEGMENT_COUNT
-    local totalLength  = cfg.pendulumLength or Constants.PENDULUM_LENGTH_DEFAULT
+    -- NEW: use segmentLength + segmentCount
+    local segmentCount  = (cfg and cfg.segmentCount)  or Constants.PENDULUM_SEGMENT_COUNT
+    local segmentLength = (cfg and cfg.segmentLength) or Constants.PENDULUM_SEGMENT_LENGTH
+
+    -- Level bounds from config (if present)
+    Entities.levelWidth  = (cfg and cfg.levelWidth)  or Constants.SCREEN_WIDTH
+    Entities.levelHeight = (cfg and cfg.levelHeight) or Constants.SCREEN_HEIGHT
 
     p.pivotX        = pivotX
     p.pivotY        = pivotY
     p.segmentCount  = segmentCount
-    p.segmentLength = totalLength / segmentCount
+    p.segmentLength = segmentLength
     p.points        = {}
     p.attached      = true
 
@@ -113,7 +115,7 @@ function Entities.initPendulum(cfg)
         prevY = pivotY,
     }
 
-    -- Hang rope vertically from the pivot
+    -- Hang rope vertically from the pivot, using segmentLength
     for i = 2, p.segmentCount + 1 do
         local y = pivotY + p.segmentLength * (i - 1)
         p.points[i] = {
@@ -128,6 +130,7 @@ function Entities.initPendulum(cfg)
     p.tailX = tail.x
     p.tailY = tail.y
 end
+
 
 
 

@@ -8,8 +8,8 @@ Constants.SCREEN_WIDTH  = 400
 Constants.SCREEN_HEIGHT = 240
 
 -- Rope / pendulum tuning
-Constants.PENDULUM_LENGTH_DEFAULT = 80      -- total rope length in pixels
-Constants.PENDULUM_SEGMENT_COUNT  = 6       -- number of segments in the rope
+Constants.PENDULUM_SEGMENT_COUNT  = 4        -- number of segments in the rope
+Constants.PENDULUM_SEGMENT_LENGTH = 10
 
 -- Verlet physics tuning
 Constants.PENDULUM_GRAVITY        = 0.25    -- per-frame gravity for Verlet

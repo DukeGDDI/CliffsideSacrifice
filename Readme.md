@@ -11,7 +11,7 @@
 
 **Cliffside Sacrifice** is a physics-inspired arcade puzzle game where the player controls a team of tethered climbers attempting to ascend a cliff by swinging, launching, and catching new pivot points. Progress requires careful timing, mastery of pendulum motion, and strategic sacrifice of climbers to reach difficult pivots.
 
-The game interprets the jam theme **"Pay to Win"** as paying with **sacrifice**—discarding parts of your team to overcome otherwise impossible obstacles. The player must finish each level with **at least two climbers** remaining.
+The game interprets the jam theme **"Pay to Win"** as paying with **sacrifice**—discarding parts of your team to overcome otherwise impossible obstacles. Levels are tall vertical cliffs. The climbers start near the top and must swing and launch their way downward, moving with gravity to reach goal pivots near the bottom of the level.
 
 ---
 
@@ -24,7 +24,7 @@ The game interprets the jam theme **"Pay to Win"** as paying with **sacrifice**�
    * Attempts to **grab** a pivot if within reach.
    * Or, if timed during a backswing, **releases** to sling the bottom climber toward a distant pivot.
 5. If the climber reaches a new pivot and A is pressed at the right time, the rope **reattaches**, shifting the pivot upward.
-6. Player continues ascending pivot by pivot until reaching a **finish pivot**.
+6. Player continues decending pivot by pivot until reaching a **finish pivot**.
 7. Player may press **B** to **sacrifice** the lowest climber, shortening the rope for stronger swings.
 8. Level ends when reaching a finish pivot with **≥2 climbers**.
 
@@ -164,9 +164,24 @@ The core thematic mechanic.
 
 ### **Structure**
 
-* Levels are handcrafted using JSON.
-* Designed primarily vertical but may be horizontally expansive.
-* Camera always keeps **all climbers** within the view.
+* Levels are vertically oriented and defined in world space.
+* Players start near the top of the level and progress downward toward one or more finish pivots near the bottom.
+* Movement direction is primarily down, leveraging gravity to make swinging and launching more expressive and controllable.
+* The level has explicit dimensions:
+  * evelWidth
+  * levelHeight
+* World coordinate system:
+  * (0,0) is the top center of the level.
+  * X increases to the right, X decreases to the left.
+  * Y increases downward.
+
+### **Camera & View**
+
+* The camera viewport is the Playdate screen (400 × 240 px).
+* Camera is defined in world-space coordinates:
+  * cameraX, cameraY represent the top-center of the viewport in world coordinates (same origin as level).
+  * The camera always tries to keep all climbers visible, but prioritizes tracking the current pivot (detailed in the Camera section).
+
 
 ### **Progression**
 
@@ -240,42 +255,119 @@ The core thematic mechanic.
 
 ---
 
-# **12. Data Format (JSON Spec)**
+# **11. Camera & Level Orientation**
 
-### **Level File JSON Schema (Draft)**
+### **11.1 World & Camera Coordinate System**
+
+* **World origin**: `(0,0)` is the **top-center** of the entire level.
+* X-axis:
+
+  * Positive X → right
+  * Negative X → left
+* Y-axis:
+
+  * Positive Y → **downward**
+* **Camera origin**:
+
+  * `cameraX, cameraY` represent the **top-center** of the viewport in the same coordinate system.
+  * The visible screen spans:
+
+    * Horizontally: `cameraX - 200` to `cameraX + 200`
+    * Vertically: `cameraY` to `cameraY + 240`
+
+### **11.2 Camera Target: Pivot-Focused Framing**
+
+* The **current pivot peg** is the primary camera target.
+* Desired framing:
+
+  * On-screen X ≈ 200 (center of the 400 px screen)
+  * On-screen Y ≈ 20 px from the top (pivot appears slightly below the top edge).
+* In world-space terms, the **ideal camera position** is:
+
+  * `targetCameraX = pivotX`
+  * `targetCameraY = pivotY - 20`
+  * (since `cameraY` is the top of the viewport, placing pivot 20 px down from top).
+
+### **11.3 Camera Movement (Lerped Tracking)**
+
+* The camera **does not snap** instantly to the ideal position.
+* Instead, each frame it **smoothly lerps** toward `targetCameraX, targetCameraY`, creating a soft, cinematic follow effect.
+* This smoothing avoids jitter when the pivot moves slightly or when the rope swings near a pivot.
+
+### **11.4 Clamping to Level Bounds**
+
+The camera must **never show outside the level bounds**.
+
+Given:
+
+* `levelWidth`, `levelHeight`
+* Camera half-width = 200 px
+* Camera height = 240 px
+
+Clamping rules:
+
+* **Horizontal clamp**
+
+  * Camera’s visible area must remain within `[ -levelWidth/2, +levelWidth/2 ]` (if you treat 0 as center).
+  * So `cameraX` is clamped such that:
+
+    * Left edge ≥ level left boundary
+    * Right edge ≤ level right boundary
+
+* **Vertical clamp**
+
+  * `cameraY` (top of viewport) is clamped so:
+
+    * `cameraY ≥ 0` (can’t go above the top of level)
+    * `cameraY + 240 ≤ levelHeight` (can’t show below the bottom of level)
+
+* If the pivot is near the **top** or **bottom** of the level, the camera may **stop moving** even if the pivot would ideally be at `(200,20)` to avoid showing outside the level.
+
+### **11.5 Ensuring Climbers Are Visible**
+
+* The camera framing is pivot-centric, but where possible, it should keep **all climbers within the viewport**.
+* Priority:
+
+  1. Keep the current pivot at the desired approximate screen location.
+  2. Keep all climbers on-screen; if necessary, the camera may slightly relax the ideal pivot offset to avoid cutting off climbers at the edges (this can be a future refinement / stretch).
+
+---
+
+# 🧾 12. Data Format (JSON Spec) – Updated with Dimensions
+
+Update the sample JSON spec like this:
 
 ```json
 {
   "levelName": "Level 1",
   "background": "assets/bg1.png",
 
-  "segments": [
-    20, 20, 30
-  ],
+  "levelWidth": 400,
+  "levelHeight": 1200,
+
+  "segments": [20, 20, 30],
 
   "pivots": [
-    { "x": 120, "y": 40, "type": "stable" },
-    { "x": 180, "y": 80, "type": "wobbly", "timeToBreak": 3000, "swingLimit": 5 },
-    { "x": 100, "y": -20, "type": "stable", "isFinish": true }
+    { "x": 0,   "y": 40,  "type": "stable" },
+    { "x": 60,  "y": 200, "type": "wobbly", "timeToBreak": 3000, "swingLimit": 5 },
+    { "x": -40, "y": 1000, "type": "stable", "isFinish": true }
   ]
 }
 ```
 
-### **Field Definitions**
+### **New Field Definitions**
 
-* **segments**
-  List of rope segment lengths.
-  Number of segments + 1 = number of climbers.
+* `levelWidth`
 
-* **pivots[]**
+  * Horizontal span of the level in pixels.
+  * Centered around `x=0` (top center), so the logical horizontal range is roughly `[-levelWidth/2, +levelWidth/2]`.
 
-  * `x, y`: pivot coordinates
-  * `type`: `"stable"` or `"wobbly"`
-  * Wobbly-specific:
+* `levelHeight`
 
-    * `timeToBreak`: ms before pivot breaks
-    * `swingLimit`: # swings allowed before breaking
-  * `isFinish`: marks a pivot as a level goal
+  * Vertical size of the level in pixels.
+  * Starts at `y=0` (top) and extends to `y=levelHeight` (bottom).
+
+The previous field definitions for segments and pivots stay the same, just **now explicitly live inside these level bounds**.
 
 ---
 

@@ -23,7 +23,7 @@ Level.levels[0] = {
     levelHeight = 800,  -- taller than the screena
 
     -- Pendulum configuration for this level
-    segmentLength = 50,
+    segmentLength = 20,
     segmentCount = 4,
 
     -- Peg list (first entry = starting pivot), in LEVEL SPACE

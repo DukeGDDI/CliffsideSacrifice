@@ -37,6 +37,8 @@ function Game.init()
     -- Load the initial level
     Game.loadLevel(Game.currentLevelIndex)
 
+    Game.playerWon = false
+
     -- print("skyImage:", Draw.skyImage)
     -- print("groundImage:", Draw.groundImage)
 
@@ -153,6 +155,13 @@ function Game.update()
     Draw.drawPegs(Entities.pegs)
     Draw.drawPendulum(Entities.pendulum)
 
+    -- If player reached end peg, draw win message
+    if Game.playerWon then
+        Draw.drawYouWon()
+    end
+
+
+
     -- Update timers (for future use)
     playdate.timer.updateTimers()
 end
@@ -167,4 +176,9 @@ end
 
 function Game.onBButtonDown()
     Entities.cutSegment()
+end
+
+
+function Game.onEndPegReached()
+    Game.playerWon = true
 end

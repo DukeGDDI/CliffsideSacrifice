@@ -265,6 +265,12 @@ function Entities.grabPeg(pegIndex)
     Entities.pegGrabCooldownFrames = Constants.PEG_GRAB_COOLDOWN_FRAMES
 
     -- Next updatePendulum call will naturally settle the rope.
+
+        -- WIN CHECK: If this peg is an "end" peg, tell Game
+    if peg.type == "end" and Game and Game.onEndPegReached then
+        Game.onEndPegReached()
+    end
+
 end
 
 ----------------------------------------------------------------

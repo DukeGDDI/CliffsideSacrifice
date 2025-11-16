@@ -35,7 +35,7 @@ Level.levels = Level.levels or {}
 -- Example baseline level (index 0)
 Level.levels[0] = {
     levelWidth    = 400,
-    levelHeight   = 800,
+    levelHeight   = 240,
     segmentLength = 20,
     segmentCount  = 4,
 
@@ -45,7 +45,7 @@ Level.levels[0] = {
         {
             id   = "start",
             x    = 0,
-            y    = 50,
+            y    = 40,
             type = "start",
         },
 

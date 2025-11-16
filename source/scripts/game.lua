@@ -30,12 +30,16 @@ Game.currentLevelConfig = Game.currentLevelConfig or nil
 ----------------------------------------------------------------
 function Game.init()
     -- Basic graphics setup
-    gfx.setBackgroundColor(gfx.kColorWhite)
-    gfx.setColor(gfx.kColorBlack)
+    gfx.setBackgroundColor(gfx.kColorBlack)
+    gfx.setColor(gfx.kColorWhite)
     playdate.display.setRefreshRate(30)
 
     -- Load the initial level
     Game.loadLevel(Game.currentLevelIndex)
+
+    -- print("skyImage:", Draw.skyImage)
+    -- print("groundImage:", Draw.groundImage)
+
 end
 
 ----------------------------------------------------------------
@@ -140,6 +144,10 @@ function Game.update()
     else
         Camera.update(1 / 30)
     end
+
+    -- Draw background cliff layers
+    Draw.drawCliffTop()
+    Draw.drawCliffBase()
 
     -- Draw pegs + rope
     Draw.drawPegs(Entities.pegs)

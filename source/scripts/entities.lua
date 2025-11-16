@@ -17,6 +17,10 @@ Entities.pegGrabCooldownFrames = Entities.pegGrabCooldownFrames or 0
 -- Each peg: { x, y, radius, type = "standard" }
 Entities.pegs = Entities.pegs or {}
 
+-- Level bounds (default to screen size if level doesn't override)
+Entities.levelWidth  = Entities.levelWidth  or Constants.SCREEN_WIDTH
+Entities.levelHeight = Entities.levelHeight or Constants.SCREEN_HEIGHT
+
 -- Pendulum / rope state
 Entities.pendulum = {
     pivotX        = Constants.PIVOT_X,
@@ -63,8 +67,13 @@ end
 function Entities.initPendulum()
     local p = Entities.pendulum
 
-    local cfg = (Level and Level.getCurrent) and Level.getCurrent() or nil
+    local cfg = (Level and Level.getLevel(0)) and Level.getLevel(0) or nil
     local levelPegs = (cfg and cfg.pegs) or Entities.pegs
+
+    -- Capture level bounds from config if available
+    Entities.levelWidth  = (cfg and cfg.levelWidth)  or Constants.SCREEN_WIDTH
+    Entities.levelHeight = (cfg and cfg.levelHeight) or Constants.SCREEN_HEIGHT
+
 
     if not levelPegs or #levelPegs == 0 then
         levelPegs = {
@@ -125,12 +134,22 @@ end
 -- If a Level module exists, go through Level.apply() so pivot, rope, and pegs
 -- are all consistent. Otherwise, just re-init the pendulum.
 function Entities.resetLevel()
+    -- Prefer going through Game if it exists (future-proof for multi-level support)
+    if Game and Game.reloadLevel then
+        Game.reloadLevel()
+        return
+    end
+
+    -- Fallback: use Level.apply() if available (single-level flow)
     if Level and Level.apply then
         Level.apply()
-    else
-        Entities.initPendulum()
+        return
     end
+
+    -- Last resort: just rebuild the pendulum with whatever config exists
+    Entities.initPendulum()
 end
+
 
 
 
@@ -274,9 +293,37 @@ function Entities.updatePendulum(pumpDir)
         return
     end
 
+    -- 1. Integrate motion (Verlet + gravity + pumping)
+    Entities._integratePendulumPoints(p, points, count, pumpDir, gravity, damping)
+
+    -- 2. Re-anchor pivot if attached
+    Entities._reanchorPivotIfAttached(p, points)
+
+    -- 3. Satisfy distance constraints + limit bend angles
+    Entities._solvePendulumConstraints(p, points, count)
+
+    -- 4. Update tail convenience fields
+    Entities._updatePendulumTail(p, points, count)
+
+    -- 5. Peg cooldown + grab checks
+    Entities._updatePegCooldownAndCheckGrab()
+
+    -- 6. Fail condition (may reset level)
+    if Entities._checkPendulumFailCondition(p) then
+        return
+    end
+
+    -- 7. Update any loose (cut) segments
+    Entities.updateLooseSegments()
+end
+
+----------------------------------------------------------------
+-- Helper: integrate points (Verlet + gravity + pumping)
+----------------------------------------------------------------
+function Entities._integratePendulumPoints(p, points, count, pumpDir, gravity, damping)
     ------------------------------------------------------------
-    -- 1. Integrate motion for all points except the pivot when attached
-    --    (When released, ALL points are integrated freely.)
+    -- Integrate motion for all points except the pivot when attached
+    -- (When released, ALL points are integrated freely.)
     ------------------------------------------------------------
     local startIndex = 2
     if not p.attached then
@@ -327,10 +374,12 @@ function Entities.updatePendulum(pumpDir)
         pt.x = pt.x + vx
         pt.y = pt.y + vy
     end
+end
 
-    ------------------------------------------------------------
-    -- 2. Re-anchor the pivot point (fixed) when attached
-    ------------------------------------------------------------
+----------------------------------------------------------------
+-- Helper: re-anchor pivot when attached
+----------------------------------------------------------------
+function Entities._reanchorPivotIfAttached(p, points)
     if p.attached then
         local pivot = points[1]
         pivot.x     = p.pivotX
@@ -338,10 +387,15 @@ function Entities.updatePendulum(pumpDir)
         pivot.prevX = p.pivotX
         pivot.prevY = p.pivotY
     end
+end
 
+----------------------------------------------------------------
+-- Helper: constraints (segment length + max bend)
+----------------------------------------------------------------
+function Entities._solvePendulumConstraints(p, points, count)
     ------------------------------------------------------------
-    -- 3. Satisfy distance constraints between segments
-    --    + limit bend angle at each joint.
+    -- Satisfy distance constraints between segments
+    -- + limit bend angle at each joint.
     ------------------------------------------------------------
     local segLen     = p.segmentLength
     local iterations = 5   -- stiffer rope
@@ -367,7 +421,7 @@ function Entities.updatePendulum(pumpDir)
                     b.x = b.x - dx * diff
                     b.y = b.y - dy * diff
                 else
-                    -- Released or internal segment: move both ends.
+                    -- Otherwise, move both endpoints halfway.
                     local half = 0.5
                     a.x = a.x + dx * diff * half
                     a.y = a.y + dy * diff * half
@@ -433,17 +487,21 @@ function Entities.updatePendulum(pumpDir)
             end
         end
     end
+end
 
-        ------------------------------------------------------------
-    -- 4. Update tail position convenience fields
-    ------------------------------------------------------------
+----------------------------------------------------------------
+-- Helper: update tail convenience fields
+----------------------------------------------------------------
+function Entities._updatePendulumTail(p, points, count)
     local tail = points[count + 1]
     p.tailX = tail.x
     p.tailY = tail.y
+end
 
-    ------------------------------------------------------------
-    -- 5. Decrement peg grab cooldown (if any), then check grabs
-    ------------------------------------------------------------
+----------------------------------------------------------------
+-- Helper: cooldown + peg grabbing
+----------------------------------------------------------------
+function Entities._updatePegCooldownAndCheckGrab()
     if Entities.pegGrabCooldownFrames and Entities.pegGrabCooldownFrames > 0 then
         Entities.pegGrabCooldownFrames = Entities.pegGrabCooldownFrames - 1
         if Entities.pegGrabCooldownFrames < 0 then
@@ -452,31 +510,38 @@ function Entities.updatePendulum(pumpDir)
     end
 
     Entities.checkPegGrab()
+end
 
+----------------------------------------------------------------
+-- Helper: fail condition (returns true if level reset)
+----------------------------------------------------------------
+function Entities._checkPendulumFailCondition(p)
     ------------------------------------------------------------
-    -- 6. Fail condition: if released and tail falls off-screen,
-    --    reset the level.
+    -- Fail condition: if released and tail leaves the level bounds
+    -- (with some margin), reset the level.
     ------------------------------------------------------------
     if not p.attached then
-        local tx, ty   = p.tailX, p.tailY
-        local margin   = 40
-        local w, h     = Constants.SCREEN_WIDTH, Constants.SCREEN_HEIGHT
+        local tx, ty = p.tailX, p.tailY
+        local margin = 40
 
+        -- 🔹 Use level bounds instead of fixed screen size
+        local w = Entities.levelWidth  or Constants.SCREEN_WIDTH
+        local h = Entities.levelHeight or Constants.SCREEN_HEIGHT
+
+        -- Origin is top-left (0,0). Level spans [0,w] x [0,h].
         if ty > h + margin
            or ty < -margin
            or tx < -margin
            or tx > w + margin then
             Entities.resetLevel()
-            return
+            return true
         end
     end
 
-    ------------------------------------------------------------
-    -- 7. Update any loose (cut) segments
-    ------------------------------------------------------------
-    Entities.updateLooseSegments()
-
+    return false
 end
+
+
 
 ----------------------------------------------------------------
 -- Update physics for segments that have been cut loose
@@ -562,3 +627,4 @@ function Entities.cutSegment()
     p.tailX = newLast.x
     p.tailY = newLast.y
 end
+

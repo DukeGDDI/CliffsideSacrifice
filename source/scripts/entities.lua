@@ -17,6 +17,10 @@ Entities.pegGrabCooldownFrames = Entities.pegGrabCooldownFrames or 0
 -- Each peg: { x, y, radius, type = "standard" }
 Entities.pegs = Entities.pegs or {}
 
+-- Level bounds (default to screen size if level doesn't override)
+Entities.levelWidth  = Entities.levelWidth  or Constants.SCREEN_WIDTH
+Entities.levelHeight = Entities.levelHeight or Constants.SCREEN_HEIGHT
+
 -- Pendulum / rope state
 Entities.pendulum = {
     pivotX        = Constants.PIVOT_X,
@@ -63,8 +67,13 @@ end
 function Entities.initPendulum()
     local p = Entities.pendulum
 
-    local cfg = (Level and Level.getCurrent) and Level.getCurrent() or nil
+    local cfg = (Level and Level.getLevel(0)) and Level.getLevel(0) or nil
     local levelPegs = (cfg and cfg.pegs) or Entities.pegs
+
+    -- Capture level bounds from config if available
+    Entities.levelWidth  = (cfg and cfg.levelWidth)  or Constants.SCREEN_WIDTH
+    Entities.levelHeight = (cfg and cfg.levelHeight) or Constants.SCREEN_HEIGHT
+
 
     if not levelPegs or #levelPegs == 0 then
         levelPegs = {
@@ -498,14 +507,18 @@ end
 ----------------------------------------------------------------
 function Entities._checkPendulumFailCondition(p)
     ------------------------------------------------------------
-    -- Fail condition: if released and tail falls off-screen,
-    -- reset the level.
+    -- Fail condition: if released and tail leaves the level bounds
+    -- (with some margin), reset the level.
     ------------------------------------------------------------
     if not p.attached then
         local tx, ty = p.tailX, p.tailY
         local margin = 40
-        local w, h   = Constants.SCREEN_WIDTH, Constants.SCREEN_HEIGHT
 
+        -- 🔹 Use level bounds instead of fixed screen size
+        local w = Entities.levelWidth  or Constants.SCREEN_WIDTH
+        local h = Entities.levelHeight or Constants.SCREEN_HEIGHT
+
+        -- Origin is top-left (0,0). Level spans [0,w] x [0,h].
         if ty > h + margin
            or ty < -margin
            or tx < -margin
@@ -517,6 +530,7 @@ function Entities._checkPendulumFailCondition(p)
 
     return false
 end
+
 
 
 ----------------------------------------------------------------

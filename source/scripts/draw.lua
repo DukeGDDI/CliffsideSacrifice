@@ -14,6 +14,11 @@ end
 
 Draw = Draw or {}
 
+-- Preload cliff images (top sky and bottom ground)
+Draw.skyImage    = Draw.skyImage    or gfx.image.new("assets/images/sky.png")
+Draw.groundImage = Draw.groundImage or gfx.image.new("assets/images/ground.png")
+
+
 ----------------------------------------------------------------
 -- Helper: level/world → screen using Camera
 ----------------------------------------------------------------
@@ -99,3 +104,55 @@ function Draw.drawPendulum(pendulum)
         end
     end
 end
+
+-- Draw the cliff top (sky) at the top of the level.
+-- Top of the image sits at level Y = 0, centered on X = 0.
+function Draw.drawCliffTop()
+    if not Draw.skyImage or not Camera or not Camera.worldToScreen then
+        return
+    end
+
+    local img = Draw.skyImage
+    local w, h = img:getSize()
+
+    -- World position for the center of the top edge of the level
+    local worldX = 0
+    local worldY = 0
+
+    local cx, cy = Camera.worldToScreen(worldX, worldY)
+
+    -- Center horizontally at cx, top edge at cy
+    local screenX = cx - w / 2
+    local screenY = cy
+
+    img:draw(screenX, screenY)
+end
+
+-- Draw the cliff base (ground) at the bottom of the level.
+-- Bottom of the image sits at level Y = levelHeight, centered on X = 0.
+function Draw.drawCliffBase()
+    if not Draw.groundImage or not Camera or not Camera.worldToScreen then
+        return
+    end
+
+    local levelHeight = Entities and Entities.levelHeight or nil
+    if not levelHeight then
+        return
+    end
+
+    local img = Draw.groundImage
+    local w, h = img:getSize()
+
+    -- World position for the center of the bottom edge of the level
+    local worldX = 0
+    local worldY = levelHeight
+
+    local cx, cy = Camera.worldToScreen(worldX, worldY)
+
+    -- Center horizontally at cx, bottom edge at cy
+    local screenX = cx - w / 2
+    local screenY = cy - h
+
+    img:draw(screenX, screenY)
+end
+

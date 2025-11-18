@@ -2,6 +2,6 @@ name=CliffsideSacrifice
 author=Rodney Aiglstorfer
 description=Cliffside Sacrifice is a precision-timed swinging and climbing game where you control a lone climber navigating deadly cliffside pivots, building momentum with perfect pumps, grabbing anchors at the right moment, and ultimately choosing when to sacrifice your rope to survive and ascend higher.
 bundleID=edu.duke.ra311.cs_sacrifice
-version=1.0.0
+version=1.1.0
 buildNumber=1
 imagePath=assets/images

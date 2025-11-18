@@ -21,6 +21,8 @@ local gfx = playdate.graphics
 -- Global Game table (never local, never returned)
 Game = Game or {}
 
+Game.state = Game.state or "playing" -- "playing", "won", "lost"
+
 -- Zero-indexed current level
 Game.currentLevelIndex  = Game.currentLevelIndex or 0
 Game.currentLevelConfig = Game.currentLevelConfig or nil
@@ -37,10 +39,7 @@ function Game.init()
     -- Load the initial level
     Game.loadLevel(Game.currentLevelIndex)
 
-    Game.playerWon = false
-
-    -- print("skyImage:", Draw.skyImage)
-    -- print("groundImage:", Draw.groundImage)
+    Game.state = Game.state or "playing"
 
 end
 
@@ -48,10 +47,15 @@ end
 -- LEVEL LOADING
 ----------------------------------------------------------------
 
--- Reload the current level
-function Game.reloadLevel()
+ -- Reload the current level
+ function Game.reloadLevel()
+    -- Mark this level as lost so the app can show the Lost screen.
+    Game.state = "lost"
+
+    -- Reset the level state (pegs, rope, camera, etc.)
     Game.loadLevel(Game.currentLevelIndex)
-end
+ end
+
 
 -- Load a level by index (zero-based)
 function Game.loadLevel(index)
@@ -155,13 +159,6 @@ function Game.update()
     Draw.drawPegs(Entities.pegs)
     Draw.drawPendulum(Entities.pendulum)
 
-    -- If player reached end peg, draw win message
-    if Game.playerWon then
-        Draw.drawYouWon()
-    end
-
-
-
     -- Update timers (for future use)
     playdate.timer.updateTimers()
 end
@@ -180,5 +177,5 @@ end
 
 
 function Game.onEndPegReached()
-    Game.playerWon = true
+    Game.state = "won"
 end

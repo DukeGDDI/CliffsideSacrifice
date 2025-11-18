@@ -32,8 +32,31 @@ Level = Level or {}
 
 Level.levels = Level.levels or {}
 
--- Example baseline level (index 0)
 Level.levels[0] = {
+    segmentLength = 20,
+    segmentCount  = 4,
+
+    -- Simple test level with just start and end pegs
+    pegs = {
+        {
+            id   = "start_00",
+            x    = 0,
+            y    = 40,
+            type = "start",
+        },
+
+        {
+            id       = "end_00",
+            refId    = "start_00",
+            segDist  = 8,
+            degOffset = 0,
+            type     = "end",
+        },
+    },
+}
+
+-- Example baseline level (index 1)
+Level.levels[1] = {
     segmentLength = 20,
     segmentCount  = 4,
 

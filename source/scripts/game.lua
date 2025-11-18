@@ -157,8 +157,8 @@ function Game.update()
     end
 
     -- Draw background cliff layers
-    Draw.drawCliffTop()
-    Draw.drawCliffBase()
+    -- Draw.drawCliffTop()
+    -- Draw.drawCliffBase()
 
     -- Draw pegs + rope
     Draw.drawPegs(Entities.pegs)

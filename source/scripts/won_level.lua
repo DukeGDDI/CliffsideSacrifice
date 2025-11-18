@@ -51,7 +51,7 @@ WonLevel.menu = {
     paddingY                = 3,
     verticalOffset          = 0,
     clearBackground         = false, -- we draw bg image ourselves
-    x                       = 220,   -- center X for menu text (tweak to taste)
+    x                       = 125,   -- center X for menu text (tweak to taste)
     y                       = 120,   -- top Y of first item
     cornerRadius            = 6,     -- used by MenuComponent for rounded corners
 }

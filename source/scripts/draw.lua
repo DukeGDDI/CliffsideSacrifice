@@ -217,18 +217,3 @@ function Draw.drawCliffBase()
 
     img:draw(screenX, screenY)
 end
-
-----------------------------------------------------------
--- Draw "YOU WON!" centered on screen, using theme colors
-----------------------------------------------------------
-function Draw.drawYouWon()
-    setTextModeForTheme()
-    gfx.setFont(gfx.getSystemFont(gfx.font.kVariantBold))
-
-    gfx.drawTextAligned(
-        "YOU WON!",
-        Constants.SCREEN_WIDTH / 2,
-        Constants.SCREEN_HEIGHT / 2,
-        kTextAlignment.center
-    )
-end

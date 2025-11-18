@@ -12,6 +12,7 @@ import "CoreLibs/timer"
 
 -- Core game systems (you likely already had these imports somewhere)
 import "scripts/constants"
+import "scripts/menu_component"
 import "scripts/camera"
 import "scripts/entities"
 import "scripts/level"
@@ -26,6 +27,7 @@ import "scripts/won"
 import "scripts/won_level"
 import "scripts/lost"
 
+
 local gfx = playdate.graphics
 
 ------------------------------------------------------------
@@ -36,6 +38,7 @@ App = App or {}
 
 -- Currently active screen (Splash, Menu, Game, Settings, Won, WonLevel, Lost)
 App.currentScreen = nil
+App.invertColor   = App.invertColor or false  -- default
 
 -- Helper to switch screens by table, not by name
 function App.setScreen(screen)

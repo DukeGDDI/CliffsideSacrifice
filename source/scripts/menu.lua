@@ -1,48 +1,60 @@
 -- scripts/menu.lua
 --
 -- Main menu screen.
--- Menu options conceptually: "Start", "Resume", "Settings"
--- For this first pass we just render "MAIN MENU" centered, but
--- A/B are wired according to the spec.
+-- Menu options: "Start", "Resume", "Settings".
+-- Uses MenuComponent for drawing.
 
 import "scripts/game"
+import "scripts/menu_component"
 
 local gfx = playdate.graphics
 
-Menu = {}
+Menu = Menu or {}
 
-Menu.items = { "Start", "Resume", "Settings" }
-Menu.selectedIndex = 1   -- Future: use up/down to change this
+-- scripts/menu.lua
+
+Menu.menu = {
+    items                   = { "Start", "Resume", "Settings" },
+    selectedIndex           = 1,
+    backgroundColor         = gfx.kColorWhite,
+    textColor               = gfx.kColorBlack,
+    selectedTextColor       = gfx.kColorWhite,
+    selectedBackgroundColor = gfx.kColorBlack,
+    lineHeight              = 20,
+    verticalOffset          = 0,
+}
+
 
 function Menu.enter()
-    -- Reset selection when entering the menu if desired
-    Menu.selectedIndex = 1
+    -- Reset selection whenever we come back to the menu
+    Menu.menu.selectedIndex = Menu.menu.selectedIndex or 1
 end
 
 function Menu.update()
-    -- Future: handle D-pad up/down to change Menu.selectedIndex.
+    -- Handle up/down navigation
+    if playdate.buttonJustPressed(playdate.kButtonUp) then
+        MenuComponent.changeSelection(Menu.menu, -1)
+    elseif playdate.buttonJustPressed(playdate.kButtonDown) then
+        MenuComponent.changeSelection(Menu.menu, 1)
+    end
 end
 
 function Menu.draw()
-    gfx.clear(gfx.kColorBlack)
-    gfx.setImageDrawMode(gfx.kDrawModeFillWhite)
-
-    local w, h = playdate.display.getWidth(), playdate.display.getHeight()
-    gfx.drawTextAligned("MAIN MENU", w / 2, h / 2, kTextAlignment.center)
+    MenuComponent.draw(Menu.menu)
 end
 
 function Menu.AButtonDown()
-    local idx   = Menu.selectedIndex
-    local label = Menu.items[idx]
+    local idx   = Menu.menu.selectedIndex
+    local label = Menu.menu.items[idx]
 
     if label == "Start" then
-        -- Start a new run: ensure Game.state is ready
+        -- Start a new game run
         Game.state = "playing"
         App.setScreen(Game)
 
     elseif label == "Resume" then
-        -- For now a no-op (pause/save not implemented yet).
-        -- You could also choose to App.setScreen(Game) here later.
+        -- Placeholder: no pause/save yet; no-op for now.
+        -- Later you might App.setScreen(Game) if a game session exists.
 
     elseif label == "Settings" then
         App.setScreen(Settings)
@@ -50,6 +62,6 @@ function Menu.AButtonDown()
 end
 
 function Menu.BButtonDown()
-    -- Return to splash screen
+    -- Back to splash screen
     App.setScreen(Splash)
 end

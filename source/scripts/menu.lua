@@ -70,14 +70,14 @@ function Menu.AButtonDown()
     local idx   = Menu.menu.selectedIndex
     local label = Menu.menu.items[idx]
 
-    if label == "Start" then
+    if label == Menu.menu.items[1] then
         Game.state = "playing"
         App.setScreen(Game)
 
-    elseif label == "Resume" then
+    elseif label == Menu.menu.items[2] then
         -- no-op for now
 
-    elseif label == "Settings" then
+    elseif label == Menu.menu.items[3] then
         App.setScreen(Settings)
     end
 end

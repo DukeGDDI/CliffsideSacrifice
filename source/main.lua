@@ -12,12 +12,20 @@ import "CoreLibs/timer"
 
 -- Core game systems (you likely already had these imports somewhere)
 import "scripts/constants"
-import "scripts/menu_component"
 import "scripts/camera"
 import "scripts/entities"
 import "scripts/level"
 import "scripts/draw"
 import "scripts/game"
+import "scripts/menu_component"
+
+-- Screen modules
+import "scripts/splash"
+import "scripts/menu"
+import "scripts/settings"
+import "scripts/won"
+import "scripts/won_level"
+import "scripts/lost"
 
 local gfx = playdate.graphics
 
@@ -39,13 +47,6 @@ function App.setScreen(screen)
     end
 end
 
--- Screen modules
-import "scripts/splash"
-import "scripts/menu"
-import "scripts/settings"
-import "scripts/won"
-import "scripts/won_level"
-import "scripts/lost"
 
 ------------------------------------------------------------
 -- Init

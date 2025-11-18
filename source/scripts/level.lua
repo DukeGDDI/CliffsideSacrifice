@@ -34,8 +34,6 @@ Level.levels = Level.levels or {}
 
 -- Example baseline level (index 0)
 Level.levels[0] = {
-    levelWidth    = 400,
-    levelHeight   = 600,
     segmentLength = 20,
     segmentCount  = 4,
 
@@ -163,17 +161,26 @@ function Level.buildLevel(index)
 
     local built = {}
 
-    -- Copy core fields with sensible defaults
-    built.levelWidth    = raw.levelWidth    or (Constants.SCREEN_WIDTH * 2)
-    built.levelHeight   = raw.levelHeight   or (Constants.SCREEN_HEIGHT * 2)
+    ----------------------------------------------------------------
+    -- Core fields
+    -- segmentLength and segmentCount still come from raw or defaults.
+    -- levelWidth/Height will be COMPUTED from peg positions.
+    ----------------------------------------------------------------
     built.segmentLength = raw.segmentLength or Constants.PENDULUM_SEGMENT_LENGTH
     built.segmentCount  = raw.segmentCount  or Constants.PENDULUM_SEGMENT_COUNT
+
+    -- Start with minimums; we will override after pegs are resolved.
+    built.levelWidth  = Constants.SCREEN_WIDTH
+    built.levelHeight = Constants.SCREEN_HEIGHT
 
     built.pegs = {}
 
     local rawPegs = raw.pegs or {}
     local byId    = {}
 
+    ----------------------------------------------------------------
+    -- Resolve pegs (absolute + relative)
+    ----------------------------------------------------------------
     for i = 1, #rawPegs do
         local src = rawPegs[i]
         if src then
@@ -249,8 +256,9 @@ function Level.buildLevel(index)
         end
     end
 
-    -- If no pegs resolved at all, create a default start peg so the
-    -- game has something to attach to.
+    ----------------------------------------------------------------
+    -- Ensure at least one peg exists
+    ----------------------------------------------------------------
     if #built.pegs == 0 then
         local defaultPeg = {
             id     = "auto_start",
@@ -267,8 +275,61 @@ function Level.buildLevel(index)
         ))
     end
 
+    ----------------------------------------------------------------
+    -- Compute levelWidth / levelHeight from peg bounds
+    --
+    -- * Min width:  SCREEN_WIDTH  (400)
+    -- * Min height: SCREEN_HEIGHT (240)
+    --
+    -- Horizontal:
+    --   Use furthest left/right pegs, with a margin of 2 segments on
+    --   BOTH sides. Coordinate system is centered on X=0, so we compute
+    --   a symmetric half-extent around 0.
+    --
+    -- Vertical:
+    --   Top is Y=0.
+    --   Height ensures 3 segments of margin below the lowest peg.
+    --   (Top margin of 2 segments is satisfied by authoring pegs with
+    --    minY >= 2*segmentLength.)
+    ----------------------------------------------------------------
+    local minX, maxX, minY, maxY = nil, nil, nil, nil
+
+    for i = 1, #built.pegs do
+        local peg = built.pegs[i]
+        local x, y = peg.x, peg.y
+
+        if minX == nil or x < minX then minX = x end
+        if maxX == nil or x > maxX then maxX = x end
+        if minY == nil or y < minY then minY = y end
+        if maxY == nil or y > maxY then maxY = y end
+    end
+
+    if minX ~= nil and maxX ~= nil and minY ~= nil and maxY ~= nil then
+        local L = built.segmentLength
+
+        -- Horizontal: symmetric extents around X=0
+        local halfExtent      = math.max(math.abs(minX), math.abs(maxX)) + 2 * L
+        local widthFromPegs   = halfExtent * 2
+        if widthFromPegs < Constants.SCREEN_WIDTH then
+            widthFromPegs = Constants.SCREEN_WIDTH
+        end
+        built.levelWidth = widthFromPegs
+
+        -- Vertical: bottom at lowest peg + 3 segments
+        local heightFromPegs = maxY + 3 * L
+        if heightFromPegs < Constants.SCREEN_HEIGHT then
+            heightFromPegs = Constants.SCREEN_HEIGHT
+        end
+        built.levelHeight = heightFromPegs
+    else
+        -- Fallback: keep minimums if something went very wrong
+        built.levelWidth  = Constants.SCREEN_WIDTH
+        built.levelHeight = Constants.SCREEN_HEIGHT
+    end
+
     return built
 end
+
 
 ----------------------------------------------------------------
 -- PUBLIC API

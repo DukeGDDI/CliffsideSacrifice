@@ -1,12 +1,4 @@
 -- scripts/settings.lua
---
--- Settings screen.
--- Conceptual options:
---   1) Invert Colors
---   2) Sound [On/Off]
---
--- Uses MenuComponent for drawing. Labels update dynamically
--- based on App.invertColor and Game.soundOn.
 
 import "scripts/game"
 import "scripts/menu_component"
@@ -15,44 +7,60 @@ local gfx = playdate.graphics
 
 Settings = Settings or {}
 
--- Ensure defaults exist
-if App and App.invertColor == nil then
-    App.invertColor = false
+-- Load background variants once
+local bgImageNormal   = gfx.image.new("assets/images/menubg.png")
+local bgImageInverted = gfx.image.new("assets/images/menubg_inverted.png")
+
+local function getBgImage()
+    local inverted = false
+    if App and App.invertColors ~= nil then
+        inverted = App.invertColors
+    end
+
+    if inverted and bgImageInverted then
+        return bgImageInverted
+    end
+    return bgImageNormal
+end
+
+-- Defaults
+if App and App.invertColors == nil then
+    App.invertColors = false
 end
 if Game.soundOn == nil then
     Game.soundOn = true
 end
 
-
--- scripts/settings.lua
+local function buildItems()
+    local invertLabel = (App and App.invertColors) and "Invert Colors: On" or "Invert Colors: Off"
+    local soundLabel  = Game.soundOn and "Sound: On" or "Sound: Off"
+    return { invertLabel, soundLabel }
+end
 
 Settings.menu = {
-    items                   = {},  -- filled dynamically each frame
+    items                   = buildItems(),
     selectedIndex           = 1,
     backgroundColor         = gfx.kColorWhite,
     textColor               = gfx.kColorBlack,
     selectedTextColor       = gfx.kColorWhite,
     selectedBackgroundColor = gfx.kColorBlack,
-    lineHeight              = 20,
+    lineHeight              = nil,
+    itemGap                 = 4,
+    paddingX                = 10,
+    paddingY                = 3,
     verticalOffset          = 0,
+    clearBackground         = false,   -- we draw the bg image ourselves
+    x                       = 125,
+    y                       = 120,
 }
-
-
-local function buildItems()
-    local invertLabel = App.invertColor and "Invert Colors: On" or "Invert Colors: Off"
-    local soundLabel  = Game.soundOn    and "Sound: On"         or "Sound: Off"
-    return { invertLabel, soundLabel }
-end
 
 function Settings.enter()
     Settings.menu.selectedIndex = Settings.menu.selectedIndex or 1
 end
 
 function Settings.update()
-    -- Rebuild labels each frame so they reflect current values
     Settings.menu.items = buildItems()
 
-    -- Handle up/down navigation
     if playdate.buttonJustPressed(playdate.kButtonUp) then
         MenuComponent.changeSelection(Settings.menu, -1)
     elseif playdate.buttonJustPressed(playdate.kButtonDown) then
@@ -61,7 +69,15 @@ function Settings.update()
 end
 
 function Settings.draw()
-    -- Ensure items are up-to-date before drawing
+    -- Draw background image based on App.invertColors
+    local img = getBgImage()
+    if img then
+        gfx.setImageDrawMode(gfx.kDrawModeCopy)
+        img:draw(0, 0)
+    else
+        gfx.clear(gfx.kColorWhite)
+    end
+
     Settings.menu.items = buildItems()
     MenuComponent.draw(Settings.menu)
 end
@@ -70,16 +86,17 @@ function Settings.AButtonDown()
     local idx = Settings.menu.selectedIndex
 
     if idx == 1 then
-        -- Toggle invert colors
-        App.invertColor = not App.invertColor
+        -- Toggle invert flag
+        if App then
+            App.invertColors = not (App.invertColors or false)
+        end
+        Game.invertColors = App and App.invertColors or false
 
     elseif idx == 2 then
-        -- Toggle sound
         Game.soundOn = not Game.soundOn
     end
 end
 
 function Settings.BButtonDown()
-    -- Back to main menu
     App.setScreen(Menu)
 end

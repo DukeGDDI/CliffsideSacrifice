@@ -19,15 +19,6 @@ import "scripts/level"
 import "scripts/draw"
 import "scripts/game"
 
--- Screen modules
-import "scripts/splash"
-import "scripts/menu"
-import "scripts/settings"
-import "scripts/won"
-import "scripts/won_level"
-import "scripts/lost"
-
-
 local gfx = playdate.graphics
 
 ------------------------------------------------------------
@@ -47,6 +38,14 @@ function App.setScreen(screen)
         screen.enter()
     end
 end
+
+-- Screen modules
+import "scripts/splash"
+import "scripts/menu"
+import "scripts/settings"
+import "scripts/won"
+import "scripts/won_level"
+import "scripts/lost"
 
 ------------------------------------------------------------
 -- Init

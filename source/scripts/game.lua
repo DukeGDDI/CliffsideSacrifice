@@ -127,6 +127,11 @@ end
 -- UPDATE
 ----------------------------------------------------------------
 function Game.update()
+    -- NEW: apply theme based on App.invertColors / App.invertColor
+    if Draw and Draw.applyTheme then
+        Draw.applyTheme()
+    end
+    
     gfx.clear()
 
     -- Input: left/right → pump direction

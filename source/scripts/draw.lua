@@ -18,6 +18,59 @@ Draw = Draw or {}
 Draw.skyImage    = Draw.skyImage    or gfx.image.new("assets/images/sky.png")
 Draw.groundImage = Draw.groundImage or gfx.image.new("assets/images/ground.png")
 
+----------------------------------------------------------------
+-- Inversion helpers (App.invertColors / App.invertColor)
+----------------------------------------------------------------
+local function isInverted()
+    if App then
+        -- Prefer plural name if present
+        if App.invertColors ~= nil then
+            return App.invertColors
+        end
+        -- Backward-compat: also support singular
+        if App.invertColor ~= nil then
+            return App.invertColor
+        end
+    end
+    return false
+end
+
+-- Exposed so Game can call it once per frame before gfx.clear()
+function Draw.applyTheme()
+    local inverted = isInverted()
+
+    if inverted then
+        -- black background, white drawing
+        gfx.setBackgroundColor(gfx.kColorBlack)
+        gfx.setColor(gfx.kColorWhite)
+    else
+        -- white background, black drawing
+        gfx.setBackgroundColor(gfx.kColorWhite)
+        gfx.setColor(gfx.kColorBlack)
+    end
+end
+
+local function setStrokeColorForTheme()
+    -- make sure primitives (lines/circles) use the right color
+    if isInverted() then
+        gfx.setColor(gfx.kColorWhite)
+    else
+        gfx.setColor(gfx.kColorBlack)
+    end
+end
+
+local function setTextModeForTheme()
+    -- pick draw mode so text shows up on the current background
+    if isInverted() then
+        -- white text on black bg
+        gfx.setImageDrawMode(gfx.kDrawModeFillWhite)
+        gfx.setColor(gfx.kColorWhite)
+    else
+        -- black text on white bg
+        gfx.setImageDrawMode(gfx.kDrawModeFillBlack)
+        gfx.setColor(gfx.kColorBlack)
+    end
+end
 
 ----------------------------------------------------------------
 -- Helper: level/world → screen using Camera
@@ -38,6 +91,8 @@ function Draw.drawPegs(pegs)
         return
     end
 
+    setStrokeColorForTheme()
+
     for i = 1, #pegs do
         local peg    = pegs[i]
         local radius = peg.radius or Constants.PEG_DEFAULT_RADIUS
@@ -56,6 +111,8 @@ function Draw.drawPendulum(pendulum)
     if not points or #points == 0 then
         return
     end
+
+    setStrokeColorForTheme()
 
     ----------------------------------------------------------------
     -- Rope segments (lines)
@@ -105,8 +162,10 @@ function Draw.drawPendulum(pendulum)
     end
 end
 
+----------------------------------------------------------------
 -- Draw the cliff top (sky) at the top of the level.
 -- Top of the image sits at level Y = 0, centered on X = 0.
+----------------------------------------------------------------
 function Draw.drawCliffTop()
     if not Draw.skyImage or not Camera or not Camera.worldToScreen then
         return
@@ -125,11 +184,14 @@ function Draw.drawCliffTop()
     local screenX = cx - w / 2
     local screenY = cy
 
+    -- Let the image’s own pixels provide contrast; no draw-mode change
     img:draw(screenX, screenY)
 end
 
+----------------------------------------------------------------
 -- Draw the cliff base (ground) at the bottom of the level.
 -- Bottom of the image sits at level Y = levelHeight, centered on X = 0.
+----------------------------------------------------------------
 function Draw.drawCliffBase()
     if not Draw.groundImage or not Camera or not Camera.worldToScreen then
         return
@@ -157,19 +219,12 @@ function Draw.drawCliffBase()
 end
 
 ----------------------------------------------------------
--- Draw "YOU WON!" centered on screen in bold white text
+-- Draw "YOU WON!" centered on screen, using theme colors
 ----------------------------------------------------------
 function Draw.drawYouWon()
-    local gfx = playdate.graphics
-
-    -- Make text WHITE regardless of background
-    gfx.setImageDrawMode(gfx.kDrawModeFillWhite)
-
-    -- Bold white font
-    gfx.setColor(gfx.kColorWhite)
+    setTextModeForTheme()
     gfx.setFont(gfx.getSystemFont(gfx.font.kVariantBold))
 
-    -- Centered text
     gfx.drawTextAligned(
         "YOU WON!",
         Constants.SCREEN_WIDTH / 2,
@@ -177,4 +232,3 @@ function Draw.drawYouWon()
         kTextAlignment.center
     )
 end
-
